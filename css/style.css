@@ -1,0 +1,175 @@
+/* Fulinpach – Papierterminal-Stil.
+   Alle Grundfarben stehen hier oben in :root. Wer die Stimmung ändern will,
+   ändert nur diese sechs Werte. */
+:root{--bg:#f4f1e7;--fg:#202820;--muted:#526052;--line:#758271;--panel:#fffef6;--danger:#763d32}
+
+/* Grundgerüst */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Courier New",Consolas,monospace;font-size:16px;line-height:1.35;letter-spacing:.01em}
+#app{max-width:1100px;margin:0 auto;padding:18px}
+h1{font-size:28px;margin:0 0 6px;font-weight:700;letter-spacing:.24em;border-bottom:2px solid var(--fg);padding-bottom:8px;cursor:default;user-select:none}
+.subtitle{color:var(--muted);font-size:12px;margin-bottom:18px}
+.bar{border-top:1px dashed var(--line);margin:14px 0}
+pre{white-space:pre-wrap;word-break:break-word;margin:0;font-family:inherit}
+.footer{margin-top:18px;color:var(--muted);font-size:11px}
+.small{font-size:12px;color:var(--muted)}
+.scroll-hint{font-size:12px;color:var(--muted);margin:2px 0 8px}
+.good{color:#14551f}.bad{color:#7b1010}.secret{color:#4c2c72}
+
+/* Schaltflächen und Eingaben */
+button,input,textarea,select{font:inherit}
+button{background:var(--panel);border:1px solid var(--fg);border-radius:0;color:var(--fg);padding:5px 9px;margin:3px 4px 3px 0;cursor:pointer}
+button:hover:not(:disabled),button:focus-visible{background:#dce7d7;outline:1px dashed var(--fg);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.danger{border-color:var(--danger);color:var(--danger)}
+textarea{width:100%;min-height:90px;padding:6px}
+input[type=text]{padding:5px;width:min(100%,420px)}
+
+/* Ressourcen oben */
+.resource-row{display:flex;flex-wrap:wrap;gap:10px 20px;margin:8px 0 14px}
+.resource{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.resource-art{display:inline-block;width:3ch;flex:none;font-weight:bold;white-space:pre;line-height:1}
+.resource:first-child .resource-art{animation:appleGlow 3s ease-in-out infinite}
+
+/* Hinweiskasten und Erlebnisse */
+.notice{border:1px dashed var(--line);background:var(--panel);padding:10px 12px;margin:8px 0 14px;white-space:pre-wrap}
+.notice:empty{display:none}
+.notice strong{display:block;margin-bottom:4px}
+.log{height:180px;overflow:auto;border-top:1px dashed var(--line);padding-top:8px;margin-top:12px;color:#2e2e2e}
+details.history{border-top:1px dashed var(--line);margin-top:18px;padding-top:8px}
+details.history summary{cursor:pointer;font-weight:bold}
+
+/* Reiter und Tafeln */
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.tab.active{font-weight:bold;border:2px solid var(--fg);background:#e9f1e3}
+.panel{display:none;border:1px dashed var(--line);background:var(--panel);padding:12px;min-height:220px}
+.panel.active{display:block}
+.story{min-height:130px;margin-top:12px}
+.questbox{border:1px dashed var(--line);background:var(--panel);padding:10px;margin-top:10px}
+.quest-hint{border-left:4px solid #486c54;background:#f0f6ee;padding:8px 11px;margin:0 0 12px;font-size:13px}
+
+/* Szenenbilder */
+.main-stage,.scene-stage{position:relative;width:max-content;max-width:100%;margin:0 auto}
+.scene-art{display:block;width:max-content;max-width:100%;overflow-x:auto;white-space:pre;word-break:normal;line-height:1.12;font-size:17px;color:var(--fg);background:transparent;border:1px dashed var(--line);padding:16px;margin:0 auto 14px;font-variant-ligatures:none;tab-size:4}
+.scene-art:focus-visible{outline:2px solid #355b48;outline-offset:-2px}
+.scene-art.scene-enter{animation:sceneReveal .48s ease-out both}
+.scene-art.box-opening{animation:boxOpen .85s ease-out both}
+.scene-art.ending-scene{animation:endingReveal 1.2s ease-out both}
+.scene-hotspots{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin:8px auto 14px;max-width:100%}
+.scene-hotspot{background:var(--panel);border:1px solid var(--fg);color:var(--fg);font-size:12px;font-weight:bold;max-width:190px}
+.scene-hotspot:hover:not(:disabled),.scene-hotspot:focus-visible{background:#e8f5d7;outline:2px solid #276b3c}
+.falling-apple{position:absolute;top:8px;left:51%;opacity:0;pointer-events:none;font-size:17px;font-weight:bold;animation:appleFall 5.2s ease-in infinite}
+
+/* Kampf */
+.battle-view{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:18px;margin:8px 0 14px;padding:12px;border:1px dashed var(--line);background:var(--panel)}
+.battle-versus{font-weight:bold;color:var(--muted)}
+.item-art,.enemy-art,.battle-avatar{display:block;white-space:pre;word-break:normal;flex:none;overflow:visible;border:1px dashed var(--line);background:#f7f8ec;color:var(--fg);line-height:1.13;padding:8px;font-variant-ligatures:none}
+.item-art{width:13ch;height:8.6em;font-size:12px}
+.enemy-art,.battle-avatar{width:15ch;height:9em;font-size:16px}
+.enemy-art.hit{animation:enemyHit .35s ease-out}
+.battle-avatar.hurt{animation:heroHurt .35s ease-out}
+
+/* Streuobstwiese */
+.farm-scroll{overflow-x:auto;border:1px dashed var(--line);background:#f7f8ec}
+.farm-landscape{position:relative;min-width:680px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px;background:#f7f8ec}
+.farm-ascii{grid-column:1/-1;white-space:pre;word-break:normal;width:100%;text-align:center;font-size:12px;line-height:1.65;color:#344d38;overflow:hidden}
+.farm-plot{width:100%;min-height:114px;border:1px solid var(--fg);background:#fffef5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;white-space:normal}
+.farm-plot:hover,.farm-plot:focus-visible{background:#dfe9d7;outline:1px dashed var(--fg)}
+.farm-plot.ready{border:2px solid var(--fg);background:#ecf0d8;animation:appleGlow 2s infinite}
+.farm-plot .plot-art{font-size:21px;white-space:pre;line-height:1.2}
+.farm-plot .plot-name{font-weight:bold;font-size:13px}
+.farm-plot .plot-time{font-size:11px}
+.farm-controls{padding:12px 0}
+.farm-controls label{display:inline-block;margin:5px 9px 5px 0}
+
+/* Händler und Inventar */
+.item{border-bottom:1px dotted var(--line);padding:7px 0}
+.item:last-child{border-bottom:0}
+.shop-item{display:flex;align-items:center;gap:12px;padding:8px 0}
+.shop-item-body{min-width:0}
+.equipment-stats{display:flex;flex-wrap:wrap;gap:6px 20px;border:1px solid var(--line);background:#f7f7f2;padding:10px;margin:0 0 12px}
+.equipment-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(140px,.8fr) minmax(0,1fr);grid-template-areas:". head ." "weapon figure trinket" "hands chest feet";gap:10px;align-items:stretch}
+.equipment-slot{min-width:0;min-height:116px;border:1px dashed var(--line);background:var(--panel);padding:10px}
+.equipment-slot.has-item{border:2px solid var(--fg);background:#e9f1e3}
+.equipment-slot label{display:block;font-weight:bold;margin-bottom:6px}
+.equipment-slot select{display:block;width:100%;min-width:0;max-width:100%;padding:5px;border:1px solid var(--fg);border-radius:0;background:var(--panel);color:var(--fg)}
+.slot-art{margin:2px auto 8px}
+.slot-effect{font-size:12px;font-weight:bold;margin:6px 0 0}
+.slot-desc{font-size:12px;color:var(--muted);margin:4px 0 0}
+.equipment-figure{grid-area:figure;display:flex;align-items:center;justify-content:center;flex-direction:column;border:1px dashed var(--line);background:var(--panel);text-align:center;padding:6px}
+.equipment-figure pre{white-space:pre;word-break:normal;line-height:1.08;font-size:16px}
+.pouch{margin-top:16px;border-top:1px dashed var(--line);padding-top:10px}
+.pouch summary{font-weight:bold;cursor:pointer}
+.pouch-item{display:flex;align-items:center;gap:12px;border-bottom:1px dotted var(--line);padding:9px 0}
+.pouch-item-text{min-width:0}
+
+/* Weltkarte */
+.map-intro{margin:0 0 12px}
+.map-scroll{overflow-x:auto;border:1px dashed var(--line);background:#f7f8ec}
+.terrain-map{position:relative;width:1120px;min-width:1120px;height:760px;flex:none;isolation:isolate;overflow:hidden;background:linear-gradient(#f6f8ee 0%,#f7f8ec 48%,#e8efe5 100%)}
+.map-art{position:absolute;inset:0;width:100%;height:100%;white-space:pre;word-break:normal;font-size:15px;line-height:1;text-align:left;color:#344d38;overflow:hidden;font-variant-ligatures:none;margin:0;padding:0 12px}
+.map-point{display:inline;margin:0;padding:0;border:0;background:transparent;color:#163c29;font:inherit;font-weight:bold;line-height:inherit;vertical-align:baseline;white-space:pre;cursor:pointer}
+.map-point:hover:not(:disabled),.map-point:focus-visible{background:#d6e5bd;color:#102d21;outline:1px solid #344d38;outline-offset:0}
+.map-point:disabled{color:#747b6d;cursor:not-allowed}
+.map-point.current{background:#e6d592;color:#192c21}
+.map-markers{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:5px;padding:8px 0}
+.map-marker{margin:0;padding:4px 5px;border:1px solid var(--fg);background:#fffef5;color:var(--fg);font-size:11px;font-weight:bold;line-height:1.1;text-align:left;min-width:0;min-height:27px;white-space:normal}
+.map-marker::before{content:"[+]";display:inline-block;color:inherit;margin-right:3px}
+.map-marker:hover:not(:disabled),.map-marker:focus-visible{background:#f6edc9;color:#1a2c22;border-color:#214631;z-index:3;outline:2px solid #fff}
+.map-marker.current{border:2px solid var(--fg);background:#dfe9d7}
+.map-marker.current::before{content:"[@]"}
+.map-marker.completed:not(.current){background:#edf1dc;border-color:var(--fg)}
+.map-marker.completed:not(.current)::before{content:"[X]"}
+.map-marker.encounter:not(.current):not(:disabled)::before{content:"[?]"}
+.map-marker:disabled{opacity:.7;cursor:not-allowed;background:#e0e2da}
+.map-marker:disabled::before{content:"[#]";font-size:11px}
+.map-legend{font-size:12px;color:var(--muted);margin:9px 0 0}
+
+/* Questbuch, Wegbuch, Chronik */
+.journal-card{border:1px dashed var(--line);border-left:4px solid #7c8f73;background:var(--panel);padding:11px;margin:10px 0}
+.journal-card.active{border-left-color:#3c7551;background:#f3f8ed}
+.journal-card.completed{border-left-color:#a37b31;background:#faf7ec}
+.journal-card h3{font-size:16px;margin:0 0 4px}
+.journal-card p{margin:5px 0}
+.journal-card .journal-status{font-size:12px;font-weight:bold;color:#4b6452}
+.journal-card .journal-choice{color:#5a4823}
+.journal-list{margin:0;padding:0;list-style:none}
+.lore-card{border:1px dashed var(--line);background:#f5f3e7;padding:12px;margin:12px 0;max-width:75ch}
+.lore-card h3{font-size:15px;margin:0 0 9px}
+.lore-card p{margin:7px 0 12px;line-height:1.55}
+.encounter-card{border:1px dashed var(--line);background:#f3f6ed;padding:12px;margin:12px 0;max-width:75ch}
+.encounter-card h3{font-size:15px;margin:0 0 8px}
+.encounter-card p{line-height:1.55;margin:8px 0}
+.chronicle{border:1px dashed var(--line);background:#faf8ed;margin:10px 0;padding:10px;max-width:80ch}
+.chronicle summary{font-weight:bold;cursor:pointer}
+.chronicle p{line-height:1.55;margin:9px 0}
+.chronicle .source{font-size:12px;color:var(--muted)}
+.chronicle .answer{font-weight:bold;color:#275436}
+
+/* Animationen */
+@keyframes sceneReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes appleFall{0%,13%{opacity:0;transform:translateY(0) scale(.75)}22%{opacity:1}42%{opacity:1;transform:translateY(145px) rotate(20deg) scale(1)}48%,100%{opacity:0;transform:translateY(160px) rotate(25deg)}}
+@keyframes appleGlow{50%{transform:scale(1.12);filter:brightness(1.15)}}
+@keyframes enemyHit{25%{transform:translateX(8px);filter:brightness(1.5)}55%{transform:translateX(-5px)}}
+@keyframes heroHurt{25%{transform:translateX(-8px);filter:sepia(1)}55%{transform:translateX(5px)}}
+@keyframes boxOpen{from{opacity:.45;transform:perspective(600px) rotateX(-12deg) scale(.96)}to{opacity:1;transform:perspective(600px) rotateX(0) scale(1)}}
+@keyframes endingReveal{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:blur(0)}}
+
+/* Kleine Bildschirme */
+@media(min-width:900px){.scroll-hint{display:none}}
+@media(max-width:640px){
+  body{font-size:14px}
+  #app{padding:10px}
+  .panel{padding:9px}
+  .scene-art{font-size:11px;padding:10px 4px}
+  .scene-hotspots{justify-content:flex-start}
+  .scene-hotspot{font-size:9px;padding:3px;max-width:100%}
+  .item-art{font-size:10px}
+  .enemy-art,.battle-avatar{font-size:12px}
+  .farm-ascii{font-size:11px}
+  .equipment-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"figure figure" "head chest" "weapon trinket" "hands feet"}
+  .equipment-figure{min-height:112px}
+  .equipment-slot{min-height:104px;padding:7px}
+  .map-marker{padding:6px 6px;min-width:80px;min-height:36px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.falling-apple{display:none}}

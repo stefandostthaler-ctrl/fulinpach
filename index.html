@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fulinpach – Das Flüstern der Streuobstwiesen</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <h1 id="title">FULINPACH</h1>
+  <div class="subtitle">EIN APFEL-ABENTEUER IN BAD FEILNBACH · inspiriert von klassischen ASCII-Adventures</div>
+
+  <div id="resources" class="resource-row"></div>
+  <div id="topActions"></div>
+  <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <div class="bar"></div>
+  <div id="tabs" class="tabs"></div>
+
+  <section id="panel-main" class="panel active">
+    <div id="mainStage" class="main-stage"><pre id="mainArt" class="scene-art" role="img" aria-label="Apfelkiste am Rathausplatz"></pre><div id="mainHotspots" class="scene-hotspots"></div></div>
+    <pre id="mainStory" class="story"></pre>
+    <div id="mainActions"></div>
+    <details class="history"><summary>Erlebnisse nachlesen</summary><div id="log" class="log"></div></details>
+  </section>
+
+  <section id="panel-shop" class="panel"><div id="shop"></div></section>
+  <section id="panel-farm" class="panel"><div id="farm"></div></section>
+  <section id="panel-inventory" class="panel"><div id="inventory"></div></section>
+  <section id="panel-map" class="panel"><div id="map"></div></section>
+  <section id="panel-journal" class="panel"><div id="journal"></div></section>
+  <section id="panel-quests" class="panel"><div id="questHint" class="quest-hint"></div><div class="scene-stage"><pre id="locationArt" class="scene-art" role="img"></pre><div id="questHotspots" class="scene-hotspots"></div></div><div id="lorePanel"></div><div id="encounterPanel"></div><div id="quests"></div></section>
+  <section id="panel-box" class="panel"><div id="box"></div></section>
+  <section id="panel-save" class="panel"><div id="save"></div></section>
+
+  <div class="footer">Autosave lokal. Kein Server. Kein Konto. Ein Wegbuch voller Äpfel, Wasser und alter Namen.</div>
+</div>
+
+<!-- Reihenfolge ist wichtig: erst Inhalte, dann Logik, dann Oberfläche, dann Start. -->
+<script src="js/content/art.js"></script>
+<script src="js/content/items.js"></script>
+<script src="js/content/story.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

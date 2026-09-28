@@ -450,39 +450,170 @@ function placeState(place){
   return isPending(place)?"encounter":"available";
 }
 
-// Kartengröße: nur eine Anzeige-Einstellung dieses Browsers, nicht Teil des Spielstands.
-const MAP_ZOOM_STEPS=[15,18,22,26,30],MAP_ZOOM_DEFAULT=22,MAP_ZOOM_KEY="fulinpach_map_zoom";
-function loadMapZoom(){
-  try{const value=Number(localStorage.getItem(MAP_ZOOM_KEY));if(MAP_ZOOM_STEPS.includes(value))return value}catch(e){}
-  return MAP_ZOOM_DEFAULT;
+// Kartenansicht wie bei Google Maps: Maßstab s und Kartenpunkt (cx, cy) in der Fenstermitte, gemessen
+// in Pixeln der Karte bei 22px-Schrift. Nur eine Anzeige-Einstellung dieses Browsers, nicht im Spielstand.
+const MAP_VIEW_KEY="fulinpach_map_view",MAP_SCALE_MAX=60/22,MAP_ZOOM_FACTOR=1.5,MAP_PAN_STEP=80;
+function loadMapView(){
+  try{
+    localStorage.removeItem("fulinpach_map_zoom"); // alte Stufen-Einstellung
+    const v=JSON.parse(localStorage.getItem(MAP_VIEW_KEY));
+    if(v&&[v.s,v.cx,v.cy].every(Number.isFinite))return {s:v.s,cx:v.cx,cy:v.cy};
+  }catch(e){}
+  return null;
 }
-let mapZoom=loadMapZoom();
-function setMapZoom(direction){
-  const index=MAP_ZOOM_STEPS.indexOf(mapZoom)+direction;
-  if(index<0||index>=MAP_ZOOM_STEPS.length)return;
-  mapZoom=MAP_ZOOM_STEPS[index];
-  try{localStorage.setItem(MAP_ZOOM_KEY,String(mapZoom))}catch(e){}
-  // Nur Größe und Schaltflächen nachführen, kein render(): Scrollposition bleibt erhalten.
-  document.querySelector(".terrain-map")?.style.setProperty("--map-font",`${mapZoom}px`);
+let mapView=loadMapView(),mapResizeObserver=null,mapHintTimer=0,mapSaveTimer=0;
+function saveMapView(){clearTimeout(mapSaveTimer);if(mapView)try{localStorage.setItem(MAP_VIEW_KEY,JSON.stringify(mapView))}catch(e){}}
+function saveMapViewSoon(){clearTimeout(mapSaveTimer);mapSaveTimer=setTimeout(saveMapView,300)}
+function mapParts(){
+  const viewport=document.querySelector(".panel.active .map-viewport");
+  return viewport&&{viewport,terrain:viewport.querySelector(".terrain-map"),vw:viewport.clientWidth,vh:viewport.clientHeight};
+}
+// Kleinster Maßstab: die ganze Karte passt ins Fenster.
+function mapScaleMin({terrain,vw,vh}){return Math.min(MAP_SCALE_MAX,vw/terrain.offsetWidth,vh/terrain.offsetHeight)}
+function mapAtZoomLimit(direction){
+  const parts=mapParts();
+  if(!parts||!mapView||!parts.terrain.offsetWidth)return false;
+  return direction>0?mapView.s>=MAP_SCALE_MAX-0.001:mapView.s<=mapScaleMin(parts)+0.001;
+}
+// Maßstab begrenzen, Karte nicht über ihre Ränder hinaus schieben (kleiner als das Fenster: mittig).
+function applyMapView(){
+  const parts=mapParts();if(!parts||!mapView)return;
+  const {terrain,vw,vh}=parts,w=terrain.offsetWidth,h=terrain.offsetHeight;
+  if(!vw||!vh||!w||!h)return;
+  const s=Math.min(MAP_SCALE_MAX,Math.max(mapScaleMin(parts),mapView.s));
+  const offset=(c,size,view)=>size*s<=view?(view-size*s)/2:Math.min(0,Math.max(view-size*s,view/2-c*s));
+  const tx=offset(mapView.cx,w,vw),ty=offset(mapView.cy,h,vh);
+  mapView={s,cx:(vw/2-tx)/s,cy:(vh/2-ty)/s};
+  terrain.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;
+  terrain.style.setProperty("--map-scale",String(s));
   refreshButtons();
+}
+function panMapBy(dx,dy){if(!mapView)return;mapView.cx-=dx/mapView.s;mapView.cy-=dy/mapView.s;applyMapView()}
+// Zoomen um einen Punkt im Fenster: der Kartenpunkt darunter bleibt an seiner Stelle.
+function zoomMapAt(px,py,factor){
+  const parts=mapParts();if(!parts||!mapView)return;
+  const {vw,vh}=parts,{s,cx,cy}=mapView;
+  const mx=cx+(px-vw/2)/s,my=cy+(py-vh/2)/s;
+  const s2=Math.min(MAP_SCALE_MAX,Math.max(mapScaleMin(parts),s*factor));
+  mapView={s:s2,cx:mx-(px-vw/2)/s2,cy:my-(py-vh/2)/s2};
+  applyMapView();
+}
+function zoomMapCenter(factor){const parts=mapParts();if(parts){zoomMapAt(parts.vw/2,parts.vh/2,factor);saveMapView()}}
+function fitMap(){if(mapView){mapView.s=0;applyMapView();saveMapView()}}
+function showMapHint(text){
+  const hint=document.querySelector(".panel.active .map-hint");if(!hint)return;
+  hint.textContent=text;hint.classList.add("visible");
+  clearTimeout(mapHintTimer);mapHintTimer=setTimeout(()=>hint.classList.remove("visible"),1500);
+}
+function mapPoint(viewport,clientX,clientY){
+  const r=viewport.getBoundingClientRect();
+  return [clientX-r.left-viewport.clientLeft,clientY-r.top-viewport.clientTop];
+}
+
+// Maus und Stift ziehen die Karte; Strg + Mausrad und Zwei-Finger-Gesten zoomen. Das normale Mausrad
+// und ein einzelner Finger scrollen weiter die Seite, wie bei eingebetteten Google-Karten.
+function setupMapGestures(viewport){
+  let drag=null,suppressClick=false,touch=null;
+  viewport.addEventListener("pointerdown",e=>{
+    suppressClick=false;
+    if(e.pointerType==="touch"||e.button!==0||e.target.closest(".map-controls"))return;
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,moving:false};
+  });
+  viewport.addEventListener("pointermove",e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    if(!e.buttons){drag=null;return}
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(!drag.moving){
+      if(Math.hypot(dx,dy)<=4)return;
+      drag.moving=true;viewport.setPointerCapture(e.pointerId);viewport.classList.add("dragging");
+    }
+    drag.x=e.clientX;drag.y=e.clientY;panMapBy(dx,dy);
+  });
+  const endDrag=e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    if(drag.moving){suppressClick=true;viewport.classList.remove("dragging");saveMapView()}
+    drag=null;
+  };
+  viewport.addEventListener("pointerup",endDrag);
+  viewport.addEventListener("pointercancel",endDrag);
+  // Nach einem Ziehen keinen Klick auslösen, auch wenn es auf einer Ortsmarke begann.
+  viewport.addEventListener("click",e=>{if(suppressClick){suppressClick=false;e.stopPropagation();e.preventDefault()}},true);
+  viewport.addEventListener("wheel",e=>{
+    if(!e.ctrlKey){showMapHint("Strg + Mausrad zum Zoomen");return}
+    e.preventDefault();
+    const [px,py]=mapPoint(viewport,e.clientX,e.clientY);
+    zoomMapAt(px,py,Math.exp(-e.deltaY*(e.deltaMode===1?16:1)*0.002));
+    saveMapViewSoon();
+  },{passive:false});
+  viewport.addEventListener("dblclick",e=>{
+    if(e.target.closest(".map-point,.map-controls"))return;
+    const [px,py]=mapPoint(viewport,e.clientX,e.clientY);
+    zoomMapAt(px,py,2);saveMapView();
+  });
+  const twoFingers=list=>({x:(list[0].clientX+list[1].clientX)/2,y:(list[0].clientY+list[1].clientY)/2,
+    d:Math.hypot(list[0].clientX-list[1].clientX,list[0].clientY-list[1].clientY)});
+  viewport.addEventListener("touchstart",e=>{
+    if(e.touches.length>=2){e.preventDefault();touch={pinch:twoFingers(e.touches)}}
+    else if(!touch)touch={x:e.touches[0].clientX,y:e.touches[0].clientY,hinted:false};
+  },{passive:false});
+  viewport.addEventListener("touchmove",e=>{
+    if(e.touches.length>=2){
+      e.preventDefault();
+      const now=twoFingers(e.touches),before=touch&&touch.pinch;
+      if(before){
+        panMapBy(now.x-before.x,now.y-before.y);
+        const [px,py]=mapPoint(viewport,now.x,now.y);
+        if(before.d>0&&now.d>0)zoomMapAt(px,py,now.d/before.d);
+      }
+      touch={pinch:now};
+    }else if(touch&&!touch.pinch&&!touch.hinted&&Math.hypot(e.touches[0].clientX-touch.x,e.touches[0].clientY-touch.y)>10){
+      touch.hinted=true;showMapHint("Zum Verschieben zwei Finger verwenden");
+    }
+  },{passive:false});
+  const endTouch=e=>{
+    if(touch&&touch.pinch&&e.touches.length<2)saveMapView();
+    // Nach einer Zwei-Finger-Geste den verbliebenen Finger nicht als Wischen werten.
+    touch=e.touches.length?{x:e.touches[0].clientX,y:e.touches[0].clientY,hinted:true}:null;
+  };
+  viewport.addEventListener("touchend",endTouch);
+  viewport.addEventListener("touchcancel",endTouch);
+  // Fokus auf einer Ortsmarke (Tab) würde das Fenster selbst scrollen und die Ansicht verschieben;
+  // stattdessen bleibt es bei 0 und die Karte wird zur Marke geschoben, wenn sie nicht zu sehen ist.
+  viewport.addEventListener("scroll",()=>{viewport.scrollLeft=0;viewport.scrollTop=0});
+  viewport.addEventListener("focusin",e=>{
+    const point=e.target.closest(".map-point"),parts=mapParts();if(!point||!parts||!mapView)return;
+    const mx=point.offsetLeft+point.offsetWidth/2,my=point.offsetTop+point.offsetHeight/2;
+    const px=parts.vw/2+(mx-mapView.cx)*mapView.s,py=parts.vh/2+(my-mapView.cy)*mapView.s;
+    if(px<40||px>parts.vw-40||py<40||py>parts.vh-40){mapView.cx=mx;mapView.cy=my;applyMapView();saveMapViewSoon()}
+  });
+  viewport.addEventListener("keydown",e=>{
+    if(e.target!==viewport||e.ctrlKey||e.altKey||e.metaKey)return;
+    const pan={ArrowLeft:[MAP_PAN_STEP,0],ArrowRight:[-MAP_PAN_STEP,0],ArrowUp:[0,MAP_PAN_STEP],ArrowDown:[0,-MAP_PAN_STEP]}[e.key];
+    if(pan){panMapBy(...pan);saveMapViewSoon()}
+    else if(e.key==="+"||e.key==="=")zoomMapCenter(MAP_ZOOM_FACTOR);
+    else if(e.key==="-")zoomMapCenter(1/MAP_ZOOM_FACTOR);
+    else return;
+    e.preventDefault();
+  });
 }
 
 function renderMap(){
   const m=$("map"); if(!g.unlocks.map){m.innerHTML="";return}
   m.innerHTML="";
   const heading=document.createElement("p");heading.className="map-intro";
-  heading.textContent=g.flags.ending?"WELTKARTE · Der Weg über die alten Wiesen ist aufgedeckt.":"WELTKARTE · Fahre über die Ortsmarken in der Landschaft und klicke eine an.";
+  heading.textContent=(g.flags.ending?"WELTKARTE · Der Weg über die alten Wiesen ist aufgedeckt. ":"WELTKARTE · ")+
+    "Ziehe die Karte mit der Maus und zoome mit Strg + Mausrad, auf dem Handy mit zwei Fingern.";
   m.appendChild(heading);
-  const scrollHint=document.createElement("p");scrollHint.className="scroll-hint map-scroll-hint";
-  scrollHint.textContent="Die Karte lässt sich seitlich scrollen; mit − und + änderst du ihre Größe.";
-  m.appendChild(scrollHint);
-  const zoom=document.createElement("div");zoom.className="map-zoom";
-  const zoomLabel=document.createElement("span");zoomLabel.textContent="Kartengröße:";
-  const zoomOut=btn("−",()=>setMapZoom(-1),()=>mapZoom<=MAP_ZOOM_STEPS[0]);zoomOut.setAttribute("aria-label","Karte verkleinern");
-  const zoomIn=btn("+",()=>setMapZoom(1),()=>mapZoom>=MAP_ZOOM_STEPS[MAP_ZOOM_STEPS.length-1]);zoomIn.setAttribute("aria-label","Karte vergrößern");
-  zoom.append(zoomLabel,zoomOut,zoomIn);m.appendChild(zoom);
-  const scroll=document.createElement("div");scroll.className="map-scroll";
-  const terrain=document.createElement("div");terrain.className="terrain-map";terrain.style.setProperty("--map-font",`${mapZoom}px`);
+  const viewport=document.createElement("div");viewport.className="map-viewport";
+  viewport.tabIndex=0;viewport.setAttribute("role","group");
+  viewport.setAttribute("aria-label","Weltkarte: mit den Pfeiltasten verschieben, mit Plus und Minus zoomen");
+  const controls=document.createElement("div");controls.className="map-controls";
+  const zoomIn=btn("+",()=>zoomMapCenter(MAP_ZOOM_FACTOR),()=>mapAtZoomLimit(1));zoomIn.setAttribute("aria-label","Karte vergrößern");
+  const zoomOut=btn("−",()=>zoomMapCenter(1/MAP_ZOOM_FACTOR),()=>mapAtZoomLimit(-1));zoomOut.setAttribute("aria-label","Karte verkleinern");
+  const fit=btn("Ganze Karte",fitMap,()=>mapAtZoomLimit(-1),"map-fit");
+  controls.append(zoomIn,zoomOut,fit);
+  const mapHint=document.createElement("div");mapHint.className="map-hint";mapHint.setAttribute("aria-hidden","true");
+  const terrain=document.createElement("div");terrain.className="terrain-map";
   const mapArt=document.createElement("pre");mapArt.className="map-art";
   mapArt.setAttribute("aria-label","ASCII-Übersicht mit Norden oben: Au im Nordwesten, Sterntaler Filze im Nordosten, Bad Feilnbach in der Mitte und Jenbachtal und Berge im Süden. Die Ortsmarken sind direkt anwählbar.");
   const markers=document.createElement("div");markers.id="mapButtons";markers.className="map-markers";
@@ -521,9 +652,11 @@ function renderMap(){
       const state=placeState(place),label=place.locked?`${place.name} · noch gesperrt`:place.name;
       const point=document.createElement("button");point.type="button";
       point.className=`map-point ${state}${place.col>80?" label-left":""}`;
-      point.textContent=`[${MAP_SYMBOLS[state]}]`;point.setAttribute("aria-label",label);point.disabled=Boolean(place.locked);
+      point.textContent=`[${MAP_SYMBOLS[state]}]`;point.setAttribute("aria-label",label);
+      // Gesperrt über aria-disabled statt disabled: so lässt sich die Karte auch von hier aus ziehen.
+      if(place.locked)point.setAttribute("aria-disabled","true");
       const name=document.createElement("span");name.className="map-label";name.textContent=label;name.setAttribute("aria-hidden","true");point.appendChild(name);
-      point.onclick=()=>travel(place.id);mapArt.appendChild(point);
+      point.onclick=()=>{if(!place.locked)travel(place.id)};mapArt.appendChild(point);
       last=place.col+3;
     }
     mapArt.appendChild(document.createTextNode(row.slice(last).join("").trimEnd()));
@@ -537,10 +670,20 @@ function renderMap(){
     if(g.location===place.id)marker.setAttribute("aria-current","location");
     markers.appendChild(marker);
   }
-  scroll.appendChild(terrain);m.appendChild(scroll);m.appendChild(markers);
+  viewport.append(terrain,controls,mapHint);m.appendChild(viewport);m.appendChild(markers);
   const hint=document.createElement("p");hint.className="map-legend";
-  hint.textContent="Fahre mit der Maus über eine Ortsmarke, um den Namen zu sehen, und klicke sie an – oder wähle den Ort darunter. [@] aktueller Ort | [?] Erkundung offen | [+] anwählbar | [X] Quest abgeschlossen | [#] gesperrt. Ortslage angenähert.";
+  hint.textContent="Karte ziehen zum Verschieben; Strg + Mausrad, Doppelklick oder + / − zum Zoomen; auf dem Handy zwei Finger. Fahre mit der Maus über eine Ortsmarke, um den Namen zu sehen, und klicke sie an – oder wähle den Ort darunter. [@] aktueller Ort | [?] Erkundung offen | [+] anwählbar | [X] Quest abgeschlossen | [#] gesperrt. Ortslage angenähert.";
   m.appendChild(hint);
+  // Beim ersten Öffnen auf den aktuellen Ort zentrieren; danach bleibt die Ansicht, auch nach dem Reisen.
+  if(!mapView){
+    const current=mapArt.querySelector(".map-point.current");
+    mapView=current?{s:1,cx:current.offsetLeft+current.offsetWidth/2,cy:current.offsetTop+current.offsetHeight/2}
+      :{s:1,cx:terrain.offsetWidth/2,cy:terrain.offsetHeight/2};
+  }
+  applyMapView();
+  setupMapGestures(viewport);
+  if(mapResizeObserver)mapResizeObserver.disconnect();
+  if(window.ResizeObserver){mapResizeObserver=new ResizeObserver(()=>applyMapView());mapResizeObserver.observe(viewport)}
 }
 
 function renderJournal(){

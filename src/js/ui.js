@@ -372,7 +372,7 @@ function renderInventory(){
   }
 }
 
-// Das Relief bleibt reines ASCII und ändert sich nie: einmal zeichnen, dann nur noch die Ortsnummern setzen.
+// Das Relief bleibt reines ASCII und ändert sich nie: einmal zeichnen, dann nur noch die Ortsmarken setzen.
 const MAP_WIDTH=114,MAP_HEIGHT=50;
 let mapBaseCanvas=null;
 function mapPut(canvas,x,y,value){if(y<0||y>=MAP_HEIGHT)return;for(let i=0;i<value.length;i++)if(x+i>0&&x+i<MAP_WIDTH-1)canvas[y][x+i]=value[i]}
@@ -426,37 +426,65 @@ function buildMapCanvas(){
   }
   peak(28,37,5);peak(54,42,5);peak(91,38,6);
   // Dorf und Ortsteile mit Straßen, Häusern, Kirche und Brücken.
-  put(11,5," /\\ ");put(11,6," |[]|  AU / TAXA");
-  put(27,15," /--\\");put(27,16," |__|  BAHNHOF");
+  // Ortsnamen stehen nicht in der Karte; sie erscheinen beim Darüberfahren über der Ortsmarke.
+  put(11,5," /\\ ");put(11,6," |[]|");
+  put(27,15," /--\\");put(27,16," |__|");
   put(44,16," /\\     /\\      /\\");put(44,17,"|[]|   |[]|    |[]|");
   put(43,18,"======= BAD FEILNBACH =======");
-  put(43,19," /\\     /\\      /+\\");put(43,20," RATHAUS      KIRCHE");
+  put(43,19," /\\     /\\      /+\\");
   put(71,22,"========== BRUECKE ==========");
-  put(82,18," /\\  /\\");put(82,19,"|[]||[]|  WOHNHAEUSER");
-  put(86,15,"WIECHS  /\\");
-  put(97,26,"LITZLDORF");
-  put(20,25,"SPIELPLATZ");put(15,30,"BIBERBURG");
-  put(67,25,"JENBACH");put(62,32,"JENBACHTAL");
-  put(18,38,"TREGLER ALM");put(51,39,"WIRTSALM");
-  put(85,39,"FARRENPOINT");put(42,45,"WENDELSTEIN");
-  put(82,6,"STERNTALER FILZE");
-  put(3,47,"o Obstbaum  : Filz  # Wald  ^ Gipfel  ~ Bach  . Weg  [##] Reiseziel");
-  put(3,48,"Norden oben / Westen links     Nummer anklicken oder Ziel unten waehlen     Lage angenaehert");
+  put(82,18," /\\  /\\");put(82,19,"|[]||[]|");
+  put(94,15,"/\\");
+  put(3,47,"o Obstbaum  : Filz  # Wald  ^ Gipfel  ~ Bach  . Weg  [+] Ort  [@] hier  [#] gesperrt");
+  put(3,48,"Norden oben / Westen links     Ort anklicken oder unten waehlen     Namen beim Darueberfahren");
   return canvas;
 }
+// Zustand eines Ortes; dieselben Zeichen stehen in der Karte und in der Legende.
+const MAP_SYMBOLS={current:"@",completed:"X",locked:"#",encounter:"?",available:"+"};
+function isPending(place){return ENCOUNTERS.some(scene=>scene.place===place.id&&!g.encounters[scene.id])}
+function isCompleted(place){return ["osterbach","biberdamm"].includes(place.id)&&g.water.oster.stage==="solved"||["jenbach","siedlung"].includes(place.id)&&g.water.flood.stage==="solved"}
+function placeState(place){
+  if(g.location===place.id)return "current";
+  if(isCompleted(place))return "completed";
+  if(place.locked)return "locked";
+  return isPending(place)?"encounter":"available";
+}
+
+// Kartengröße: nur eine Anzeige-Einstellung dieses Browsers, nicht Teil des Spielstands.
+const MAP_ZOOM_STEPS=[15,18,22,26,30],MAP_ZOOM_DEFAULT=22,MAP_ZOOM_KEY="fulinpach_map_zoom";
+function loadMapZoom(){
+  try{const value=Number(localStorage.getItem(MAP_ZOOM_KEY));if(MAP_ZOOM_STEPS.includes(value))return value}catch(e){}
+  return MAP_ZOOM_DEFAULT;
+}
+let mapZoom=loadMapZoom();
+function setMapZoom(direction){
+  const index=MAP_ZOOM_STEPS.indexOf(mapZoom)+direction;
+  if(index<0||index>=MAP_ZOOM_STEPS.length)return;
+  mapZoom=MAP_ZOOM_STEPS[index];
+  try{localStorage.setItem(MAP_ZOOM_KEY,String(mapZoom))}catch(e){}
+  // Nur Größe und Schaltflächen nachführen, kein render(): Scrollposition bleibt erhalten.
+  document.querySelector(".terrain-map")?.style.setProperty("--map-font",`${mapZoom}px`);
+  refreshButtons();
+}
+
 function renderMap(){
   const m=$("map"); if(!g.unlocks.map){m.innerHTML="";return}
   m.innerHTML="";
   const heading=document.createElement("p");heading.className="map-intro";
-  heading.textContent=g.flags.ending?"WELTKARTE · Der Weg über die alten Wiesen ist aufgedeckt.":"WELTKARTE · Wähle eine Ortsnummer direkt in der Landschaft.";
+  heading.textContent=g.flags.ending?"WELTKARTE · Der Weg über die alten Wiesen ist aufgedeckt.":"WELTKARTE · Fahre über die Ortsmarken in der Landschaft und klicke eine an.";
   m.appendChild(heading);
-  const scrollHint=document.createElement("p");scrollHint.className="scroll-hint";
-  scrollHint.textContent="Die Karte ist breiter als der Bildschirm und lässt sich seitlich scrollen.";
+  const scrollHint=document.createElement("p");scrollHint.className="scroll-hint map-scroll-hint";
+  scrollHint.textContent="Die Karte lässt sich seitlich scrollen; mit − und + änderst du ihre Größe.";
   m.appendChild(scrollHint);
+  const zoom=document.createElement("div");zoom.className="map-zoom";
+  const zoomLabel=document.createElement("span");zoomLabel.textContent="Kartengröße:";
+  const zoomOut=btn("−",()=>setMapZoom(-1),()=>mapZoom<=MAP_ZOOM_STEPS[0]);zoomOut.setAttribute("aria-label","Karte verkleinern");
+  const zoomIn=btn("+",()=>setMapZoom(1),()=>mapZoom>=MAP_ZOOM_STEPS[MAP_ZOOM_STEPS.length-1]);zoomIn.setAttribute("aria-label","Karte vergrößern");
+  zoom.append(zoomLabel,zoomOut,zoomIn);m.appendChild(zoom);
   const scroll=document.createElement("div");scroll.className="map-scroll";
-  const terrain=document.createElement("div");terrain.className="terrain-map";
+  const terrain=document.createElement("div");terrain.className="terrain-map";terrain.style.setProperty("--map-font",`${mapZoom}px`);
   const mapArt=document.createElement("pre");mapArt.className="map-art";
-  mapArt.setAttribute("aria-label","ASCII-Übersicht mit Norden oben: Au im Nordwesten, Sterntaler Filze im Nordosten, Bad Feilnbach in der Mitte und Jenbachtal und Berge im Süden. Die nummerierten Orte sind direkt anwählbar.");
+  mapArt.setAttribute("aria-label","ASCII-Übersicht mit Norden oben: Au im Nordwesten, Sterntaler Filze im Nordosten, Bad Feilnbach in der Mitte und Jenbachtal und Berge im Süden. Die Ortsmarken sind direkt anwählbar.");
   const markers=document.createElement("div");markers.id="mapButtons";markers.className="map-markers";
   // Nord oben, Ost rechts. Die Positionen zeigen die Lage zueinander, nicht einen Wanderweg.
   const places=[
@@ -482,32 +510,28 @@ function renderMap(){
     {id:"fulinpach",name:"Fulinpach",col:72,row:44,locked:!g.flags.mannlGift||!g.flags.boxOpened}
   );
   if(!mapBaseCanvas)mapBaseCanvas=buildMapCanvas();
-  const canvas=mapBaseCanvas.map(row=>row.slice());
-  // Die Ortspunkte sind echte Inline-Schaltflächen und verdecken keine ASCII-Zeichen.
-  const byNumber=new Map();
-  places.forEach((place,index)=>{place.number=String(index+1).padStart(2,"0");const tag=`[${place.number}]`;mapPut(canvas,place.col,place.row,tag);byNumber.set(place.number,place)});
-  const rows=canvas.map(row=>row.join("").trimEnd());
-  for(let y=0;y<rows.length;y++){
+  // Ortsmarken ersetzen drei Zeichen der Landschaft an ihrer Position; der Name erscheint erst beim Darüberfahren.
+  const byRow=new Map();
+  for(const place of places){if(!byRow.has(place.row))byRow.set(place.row,[]);byRow.get(place.row).push(place)}
+  for(let y=0;y<mapBaseCanvas.length;y++){
     if(y)mapArt.appendChild(document.createTextNode("\n"));
-    const re=/\[(\d{2})\]/g;let match,last=0;
-    while((match=re.exec(rows[y]))){
-      mapArt.appendChild(document.createTextNode(rows[y].slice(last,match.index)));
-      const place=byNumber.get(match[1]);
-      if(place){
-        const point=document.createElement("button");point.type="button";point.className=`map-point${g.location===place.id?" current":""}`;
-        point.textContent=match[0];point.title=place.locked?`${place.name} · noch gesperrt`:place.name;
-        point.setAttribute("aria-label",point.title);point.disabled=Boolean(place.locked);
-        point.onclick=()=>travel(place.id);mapArt.appendChild(point);
-      }else mapArt.appendChild(document.createTextNode(match[0]));
-      last=re.lastIndex;
+    const row=mapBaseCanvas[y],inRow=(byRow.get(y)||[]).sort((a,b)=>a.col-b.col);let last=0;
+    for(const place of inRow){
+      mapArt.appendChild(document.createTextNode(row.slice(last,place.col).join("")));
+      const state=placeState(place),label=place.locked?`${place.name} · noch gesperrt`:place.name;
+      const point=document.createElement("button");point.type="button";
+      point.className=`map-point ${state}${place.col>80?" label-left":""}`;
+      point.textContent=`[${MAP_SYMBOLS[state]}]`;point.setAttribute("aria-label",label);point.disabled=Boolean(place.locked);
+      const name=document.createElement("span");name.className="map-label";name.textContent=label;name.setAttribute("aria-hidden","true");point.appendChild(name);
+      point.onclick=()=>travel(place.id);mapArt.appendChild(point);
+      last=place.col+3;
     }
-    mapArt.appendChild(document.createTextNode(rows[y].slice(last)));
+    mapArt.appendChild(document.createTextNode(row.slice(last).join("").trimEnd()));
   }
   terrain.appendChild(mapArt);
   for(const place of places){
-    const pending=ENCOUNTERS.some(scene=>scene.place===place.id&&!g.encounters[scene.id]);
-    const marker=btn(`[${place.number}] ${place.name}${pending?" · Erkundung":""}`,()=>travel(place.id),Boolean(place.locked));
-    const complete=["osterbach","biberdamm"].includes(place.id)&&g.water.oster.stage==="solved"||["jenbach","siedlung"].includes(place.id)&&g.water.flood.stage==="solved";
+    const pending=isPending(place),complete=isCompleted(place);
+    const marker=btn(`${place.name}${pending?" · Erkundung":""}`,()=>travel(place.id),Boolean(place.locked));
     marker.className=`map-marker${g.location===place.id?" current":""}${complete?" completed":""}${pending?" encounter":""}`;
     marker.title=place.locked?`${place.name} · noch gesperrt`:pending?`${place.name} · Erkundung offen`:complete?`${place.name} · Quest abgeschlossen`:place.name;
     if(g.location===place.id)marker.setAttribute("aria-current","location");
@@ -515,7 +539,7 @@ function renderMap(){
   }
   scroll.appendChild(terrain);m.appendChild(scroll);m.appendChild(markers);
   const hint=document.createElement("p");hint.className="map-legend";
-  hint.textContent="Klicke die Nummer in der ASCII-Karte oder wähle den Ort darunter. [@] aktueller Ort | [?] Erkundung offen | [+] anwählbar | [X] Quest abgeschlossen | [#] gesperrt. Ortslage angenähert.";
+  hint.textContent="Fahre mit der Maus über eine Ortsmarke, um den Namen zu sehen, und klicke sie an – oder wähle den Ort darunter. [@] aktueller Ort | [?] Erkundung offen | [+] anwählbar | [X] Quest abgeschlossen | [#] gesperrt. Ortslage angenähert.";
   m.appendChild(hint);
 }
 

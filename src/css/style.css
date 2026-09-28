@@ -106,12 +106,20 @@ details.history summary{cursor:pointer;font-weight:bold}
 /* Weltkarte */
 .map-intro{margin:0 0 12px}
 .map-scroll{overflow-x:auto;border:1px dashed var(--line);background:#f7f8ec}
-.terrain-map{position:relative;width:1120px;min-width:1120px;height:760px;flex:none;isolation:isolate;overflow:hidden;background:linear-gradient(#f6f8ee 0%,#f7f8ec 48%,#e8efe5 100%)}
-.map-art{position:absolute;inset:0;width:100%;height:100%;white-space:pre;word-break:normal;font-size:15px;line-height:1;text-align:left;color:#344d38;overflow:hidden;font-variant-ligatures:none;margin:0;padding:0 12px}
-.map-point{display:inline;margin:0;padding:0;border:0;background:transparent;color:#163c29;font:inherit;font-weight:bold;line-height:inherit;vertical-align:baseline;white-space:pre;cursor:pointer}
-.map-point:hover:not(:disabled),.map-point:focus-visible{background:#d6e5bd;color:#102d21;outline:1px solid #344d38;outline-offset:0}
+.map-zoom{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:14px}
+.map-zoom button{min-width:36px;padding:2px 10px;font-size:18px;line-height:1.2}
+/* Die Kartengröße folgt nur --map-font: 114 Zeichen breit, 50 Zeilen hoch. */
+.terrain-map{--map-font:22px;position:relative;font-size:var(--map-font);width:calc(114ch + 24px);height:calc(50em + 4px);flex:none;isolation:isolate;overflow:hidden;background:linear-gradient(#f6f8ee 0%,#f7f8ec 48%,#e8efe5 100%)}
+.map-art{position:absolute;inset:0;width:100%;height:100%;white-space:pre;word-break:normal;font-size:inherit;line-height:1;letter-spacing:0;text-align:left;color:#344d38;overflow:visible;font-variant-ligatures:none;margin:0;padding:0 12px}
+.map-point{position:relative;display:inline;margin:0;padding:0;border:0;background:transparent;color:#163c29;font:inherit;font-weight:bold;line-height:inherit;letter-spacing:0;vertical-align:baseline;white-space:pre;cursor:pointer}
+.map-point:hover:not(:disabled),.map-point:focus-visible{background:#d6e5bd;color:#102d21;outline:1px solid #344d38;outline-offset:0;z-index:5}
 .map-point:disabled{color:#747b6d;cursor:not-allowed}
 .map-point.current{background:#e6d592;color:#192c21}
+.map-point.encounter{color:#8a3b12}
+/* Ortsname erscheint nur beim Darüberfahren oder bei Tastaturfokus. */
+.map-label{display:none;position:absolute;left:0;bottom:calc(100% + 4px);z-index:6;padding:3px 7px;border:1px solid #214631;background:#fffef5;color:#1a2c22;font-size:max(14px,.75em);font-weight:bold;line-height:1.2;white-space:nowrap;pointer-events:none;box-shadow:2px 2px 0 rgba(33,70,49,.25)}
+.map-point.label-left .map-label{left:auto;right:0}
+.map-point:hover .map-label,.map-point:focus-visible .map-label{display:block}
 .map-markers{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:5px;padding:8px 0}
 .map-marker{margin:0;padding:4px 5px;border:1px solid var(--fg);background:#fffef5;color:var(--fg);font-size:11px;font-weight:bold;line-height:1.1;text-align:left;min-width:0;min-height:27px;white-space:normal}
 .map-marker::before{content:"[+]";display:inline-block;color:inherit;margin-right:3px}
@@ -156,7 +164,7 @@ details.history summary{cursor:pointer;font-weight:bold}
 @keyframes endingReveal{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:blur(0)}}
 
 /* Kleine Bildschirme */
-@media(min-width:900px){.scroll-hint{display:none}}
+@media(min-width:900px){.scroll-hint:not(.map-scroll-hint){display:none}}
 @media(max-width:640px){
   body{font-size:14px}
   #app{padding:10px}

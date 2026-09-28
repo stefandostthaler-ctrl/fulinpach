@@ -6,29 +6,39 @@ keine Installation.
 
 ## Spielen
 
-1. Den Ordner öffnen.
-2. Doppelklick auf **`index.html`**.
+1. Den Ordner **`src`** öffnen.
+2. Doppelklick auf **`index.html`** (also `src/index.html`).
 
 Das war's. Es funktioniert auch ohne Internet. Der Spielstand wird automatisch im
 Browser gespeichert (Reiter „Speichern“ zum Sichern als Datei).
 
-**Weitergeben:** immer den **ganzen Ordner** weitergeben (z. B. als ZIP), nicht nur
+**Von einer älteren Fassung umsteigen:** Früher lag die `index.html` direkt im
+Hauptordner. Vor dem Umstieg im alten Spiel den Reiter „Speichern“ → „Spielstand als
+JSON herunterladen“ benutzen und die Datei danach im neuen Spiel über „JSON-Datei
+importieren“ wieder laden. Manche Browser merken sich den Spielstand pro Ordner.
+
+**Weitergeben:** den **ganzen Ordner `src`** weitergeben (z. B. als ZIP), nicht nur
 die `index.html`. Die Bilder, Texte und die Spiellogik liegen in den Unterordnern.
 
 ## Was liegt wo?
 
+Alles, was zum Spiel gehört, liegt im Ordner `src/`:
+
 ```
-index.html            Die Seite selbst. Hier muss man normalerweise nichts ändern.
-css/style.css         Aussehen: Farben, Schriftgrößen, Abstände.
-js/content/art.js     Alle ASCII-Zeichnungen (Orte, Gegenstände, Gegner, Wiese).
-js/content/items.js   Gegenstände, Händlerangebot, Baumsorten, Gegnerwerte.
-js/content/story.js   Ortschronik, Erkundungen, Wegbuch-Spuren (die langen Texte).
-js/game.js            Spielregeln: was bei Klicks passiert, Kampf, Speichern/Laden.
-js/ui.js              Anzeige: baut aus dem Spielstand die Reiter und Schaltflächen.
-js/main.js            Start und Spieltakt (zählt fünfmal pro Sekunde die Äpfel).
+src/index.html            Die Seite selbst. Hier muss man normalerweise nichts ändern.
+src/css/style.css         Aussehen: Farben, Schriftgrößen, Abstände.
+src/js/content/art.js     Alle ASCII-Zeichnungen (Orte, Gegenstände, Gegner, Wiese).
+src/js/content/items.js   Gegenstände, Händlerangebot, Baumsorten, Gegnerwerte.
+src/js/content/story.js   Ortschronik, Erkundungen, Wegbuch-Spuren (die langen Texte).
+src/js/game.js            Spielregeln: was bei Klicks passiert, Kampf, Speichern/Laden.
+src/js/ui.js              Anzeige: baut aus dem Spielstand die Reiter und Schaltflächen.
+src/js/main.js            Start und Spieltakt (zählt fünfmal pro Sekunde die Äpfel).
 ```
 
-Für kleine Änderungen reicht der Ordner `js/content/`:
+Der Ordner `openspec/` enthält nur Planungsnotizen für die Entwicklung und wird zum
+Spielen nicht gebraucht.
+
+Für kleine Änderungen reicht der Ordner `src/js/content/`:
 
 - **Ein Bild ändern:** in `art.js` die Zeichnung zwischen den Backticks (`` ` ``)
   anpassen. Die Breite darf sich ändern, nur die Backticks müssen bleiben.
@@ -40,7 +50,7 @@ Für kleine Änderungen reicht der Ordner `js/content/`:
 Nach dem Speichern der Datei einfach die Seite im Browser neu laden (F5).
 
 Kurze Texte, die beim Klicken erscheinen (z. B. „Du isst 12 Äpfel …“), stehen direkt
-in `js/game.js` und `js/ui.js` bei der jeweiligen Handlung. Mit der Suche des
+in `src/js/game.js` und `src/js/ui.js` bei der jeweiligen Handlung. Mit der Suche des
 Editors (Strg+F) nach dem Satz findet man die Stelle schnell.
 
 ## Wenn etwas kaputt ist
@@ -58,7 +68,7 @@ Editors (Strg+F) nach dem Satz findet man die Stelle schnell.
   läuft. Deshalb klassische `<script src>`-Dateien statt ES-Module: Module werden
   von Browsern über `file://` blockiert.
 - Die Skripte teilen sich einen globalen Namensraum; die Ladereihenfolge in
-  `index.html` ist daher wichtig (Inhalte → Logik → Oberfläche → Start).
+  `src/index.html` ist daher wichtig (Inhalte → Logik → Oberfläche → Start).
 - Der Spielstand ist das Objekt `g` (siehe `fresh()` in `game.js`). In der
   Browser-Konsole kann man ihn direkt ansehen und ändern, z. B. `g.apples=500;render()`.
 - Spielstände liegen im `localStorage` unter `fulinpach_bad_feilnbach_v3`.
@@ -69,5 +79,6 @@ Editors (Strg+F) nach dem Satz findet man die Stelle schnell.
   `refreshView()` nur Zahlen, Schaltflächen und Zeitanzeigen nach. Schaltflächen,
   deren Verfügbarkeit von Ressourcen abhängt, bekommen in `btn()` eine Funktion
   als drittes Argument.
-- Online stellen: Der Ordner kann unverändert auf jeden statischen Webspace oder
-  GitHub Pages gelegt werden.
+- Online stellen: Den Inhalt von `src/` unverändert auf jeden statischen Webspace
+  legen. Bei GitHub Pages entweder `src/` als Veröffentlichungsordner wählen (per
+  GitHub Action) oder das Spiel unter `/src/index.html` verlinken.

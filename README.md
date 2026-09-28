@@ -6,6 +6,13 @@ keine Installation.
 
 ## Spielen
 
+**Online:** <https://stefandostthaler-ctrl.github.io/fulinpach/> – einfach den Link
+öffnen. Der Online-Spielstand ist vom Spielstand der heruntergeladenen Fassung
+getrennt; zum Mitnehmen im Reiter „Speichern“ als JSON herunterladen und im anderen
+Spiel über „JSON-Datei importieren“ wieder laden.
+
+**Auf dem eigenen Rechner:**
+
 1. Den Ordner **`src`** öffnen.
 2. Doppelklick auf **`index.html`** (also `src/index.html`).
 
@@ -79,6 +86,8 @@ Editors (Strg+F) nach dem Satz findet man die Stelle schnell.
   `refreshView()` nur Zahlen, Schaltflächen und Zeitanzeigen nach. Schaltflächen,
   deren Verfügbarkeit von Ressourcen abhängt, bekommen in `btn()` eine Funktion
   als drittes Argument.
-- Online stellen: Den Inhalt von `src/` unverändert auf jeden statischen Webspace
-  legen. Bei GitHub Pages entweder `src/` als Veröffentlichungsordner wählen (per
-  GitHub Action) oder das Spiel unter `/src/index.html` verlinken.
+- Online stellen: Jeder Push auf `main` veröffentlicht den Ordner `src/` unverändert
+  auf GitHub Pages (`.github/workflows/pages.yml`, auch per Hand im Reiter „Actions“
+  startbar). Einmalig nötig: im Repository Settings → Pages → Source: „GitHub
+  Actions“. Bei privaten Repositories braucht GitHub Pages einen bezahlten Plan.
+  Anderswo reicht es, den Inhalt von `src/` auf einen statischen Webspace zu legen.

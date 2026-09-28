@@ -12,6 +12,6 @@
 
 ## 3. Publish and verify
 
-- [ ] 3.1 Commit and push to `main` (ask the user before pushing); verify a "pages" run appears with `gh run list --workflow pages.yml`
-- [ ] 3.2 If the run fails because Pages is not enabled for Actions, tell the owner to set Settings → Pages → Source „GitHub Actions“ and re-run; verify the run succeeds with `gh run view`
-- [ ] 3.3 Open `https://stefandostthaler-ctrl.github.io/fulinpach/` in the browser (dev-browser skill): game renders with no console errors, `…/js/game.js` matches `src/js/game.js`, and `…/README.md` returns 404
+- [x] 3.1 Commit and push to `main` (ask the user before pushing); verify a "pages" run appears with `gh run list --workflow pages.yml`
+- [x] 3.2 If the run fails because Pages is not enabled for Actions, tell the owner to set Settings → Pages → Source „GitHub Actions“ and re-run; verify the run succeeds with `gh run view`
+- [x] 3.3 Open `https://stefandostthaler-ctrl.github.io/fulinpach/` in the browser (dev-browser skill): game renders with no console errors, `…/js/game.js` matches `src/js/game.js`, and `…/README.md` returns 404

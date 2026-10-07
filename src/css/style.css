@@ -81,6 +81,13 @@ details.history summary{cursor:pointer;font-weight:bold}
 .farm-plot .plot-name{font-weight:bold;font-size:13px}
 .farm-plot .plot-time{font-size:11px}
 .farm-controls{padding:12px 0}
+.upgrades{border:1px dashed var(--line);background:var(--panel);padding:10px 12px;margin-top:6px}
+.upgrades h3{margin:0 0 4px;font-size:15px;letter-spacing:.08em}
+.upgrade-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.upgrade{border-top:1px dotted var(--line);padding-top:6px}
+.upgrade.locked{color:var(--muted)}
+.upgrade.bought strong{color:#276b3c}
+.upgrade p{margin:2px 0 4px}
 .farm-controls label{display:inline-block;margin:5px 9px 5px 0}
 
 /* Händler und Inventar */

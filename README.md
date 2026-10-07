@@ -50,11 +50,17 @@ Für kleine Änderungen reicht der Ordner `src/js/content/`:
 - **Ein Bild ändern:** in `art.js` die Zeichnung zwischen den Backticks (`` ` ``)
   anpassen. Die Breite darf sich ändern, nur die Backticks müssen bleiben.
 - **Preise, Schaden, Reifezeiten:** Zahlen in `items.js` (z. B. `cost`, `damage`,
-  `seconds`).
+  `seconds`). Die Preise der späteren Geschichte stehen dort gesammelt in `STORY_COSTS`,
+  die Ausbauten der Streuobstwiese (Freischaltung, Kosten, Bonus pro Sekunde) in `UPGRADES`.
 - **Geschichten und Fragen:** Texte in `story.js`. Gerade Anführungszeichen `"` im
   Text vermeiden, stattdessen „…“ oder »…« benutzen.
 
 Nach dem Speichern der Datei einfach die Seite im Browser neu laden (F5).
+
+Folgen früherer Entscheidungen (z. B. billigere Kosten am Jenbach nach der Fachstelle, die
+Ratten am Apfelmarkt) stehen in `src/js/game.js` direkt bei der Handlung, die sie auslöst,
+meist in kleinen Funktionen wie `floodCosts()`, `golemCost()` oder `ledgerCost()`. Die
+Sprüche des Händlers stehen in `merchantLine()`.
 
 Kurze Texte, die beim Klicken erscheinen (z. B. „Du isst 12 Äpfel …“), stehen direkt
 in `src/js/game.js` und `src/js/ui.js` bei der jeweiligen Handlung. Mit der Suche des

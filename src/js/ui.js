@@ -91,6 +91,23 @@ function renderFarm(){
   select.value=g.farm.selection;select.onchange=()=>{g.farm.selection=select.value;renderFarm();saveGame()};label.appendChild(select);controls.appendChild(label);
   const info=document.createElement("p");info.className="small";info.textContent=`Ernten: ${g.farm.harvests} · Nach drei Ernten liefert die Wiese dauerhaft +1 Apfel/s.${g.flags.marketLedger?" Alte Sorte freigeschaltet.":" Eine alte Sorte wartet in der Chronik des Apfelmarkts."}`;controls.appendChild(info);
   c.appendChild(controls);
+  renderUpgrades(c);
+}
+// Ausbau der Wiese (Issue #7): passive Boni, je einmal kaufbar, freigeschaltet durch Quests.
+function renderUpgrades(c){
+  const box=document.createElement("div");box.className="upgrades";
+  box.innerHTML=`<h3>Ausbau</h3><p class="small">Die Wiese liefert ${appleRateNow().toFixed(1)} Äpfel/s und ${seedRateNow().toFixed(1)} Kerne/s. Jeder Ausbau wird durch eine Quest freigeschaltet und wirkt dauerhaft, auch bei geschlossener Datei.</p>`;
+  const list=document.createElement("ul");list.className="upgrade-list";
+  for(const u of UPGRADES){
+    const state=upgradeState(u),li=document.createElement("li");li.className=`upgrade ${state}`;
+    const bonus=[u.apples?`+${u.apples} Äpfel/s`:"",u.seeds?`+${u.seeds} Kerne/s`:""].filter(Boolean).join(", ");
+    const head=document.createElement("strong");head.textContent=`${state==="bought"?"[x]":state==="available"?"[ ]":"[#]"} ${u.name} · ${bonus}`;li.appendChild(head);
+    const text=document.createElement("p");text.className="small";
+    text.textContent=state==="bought"?u.desc:state==="available"?`Kosten: ${Object.keys(u.cost).length?costText(u.cost):"nichts"}.`:`Gesperrt: ${u.hint}`;li.appendChild(text);
+    if(state==="available")li.appendChild(btn(`${u.name} ausbauen`,()=>buyUpgrade(u.id),()=>!canAfford(u.cost)));
+    list.appendChild(li);
+  }
+  box.appendChild(list);c.appendChild(box);
 }
 function updateFarmTimers(){
   if(g.currentTab!=="farm")return;
@@ -101,7 +118,7 @@ function updateFarmTimers(){
 function renderResources(){
   const r=$("resources");
   const parts=[["apples","Äpfel",g.apples,`+${appleRateNow().toFixed(1)}/s`]];
-  if(g.shopBought.seedCollector || g.seeds>0) parts.push(["seeds","Apfelkerne",g.seeds,`+${g.seedRate.toFixed(1)}/s`]);
+  if(g.shopBought.seedCollector || g.seeds>0) parts.push(["seeds","Apfelkerne",g.seeds,`+${seedRateNow().toFixed(1)}/s`]);
   if(g.cider>0) parts.push(["cider","Mostflaschen",g.cider,""]);
   if(g.bark>0 || g.flags.wrapperSeen) parts.push(["bark","Rindenzeichen",g.bark,""]);
   parts.push(["hp","LP",`${Math.ceil(g.hp)}/${g.maxHp}`,""]);
@@ -221,9 +238,9 @@ function renderQuestHotspots(){
         if(g.water.oster.stage==="solved"&&g.flags.jenbachWon){
         if(g.water.flood.stage==="new")add("Pegel prüfen",inspectRain);
         if(g.water.flood.stage==="warned"){
-          add("Brücke",()=>solveFlood("treibholz"),()=>g.apples<30);
-          add("Rückhalt",()=>solveFlood("rueckhalt"),()=>g.apples<20||g.seeds<15);
-          add("Häuser",()=>solveFlood("hausschutz"),()=>g.apples<65);
+          add("Brücke",()=>solveFlood("treibholz"),()=>!canAfford(floodCosts().treibholz));
+          add("Rückhalt",()=>solveFlood("rueckhalt"),()=>!canAfford(floodCosts().rueckhalt));
+          add("Häuser",()=>solveFlood("hausschutz"),()=>!canAfford(floodCosts().hausschutz));
         }
       }break;
       case "siedlung":if(g.water.flood.stage==="observed"){
@@ -235,17 +252,17 @@ function renderQuestHotspots(){
       case "filze":add("Moorfrosch",filzeExplore,()=>f.filzeSecret||g.apples<40);
         if(f.ending)add("Irrlicht",catchLight,!f.springHeard||f.moorLight);break;
       case "wall":if(!f.wallPassed){add(has("chalk")?"Tür zeichnen":"Umweg suchen",()=>has("chalk")?drawDoor():bypassWall(),()=>!has("chalk")&&(g.apples<(g.encounters.bahnhof==="route"?5:20)||g.seeds<10));
-        if(has("rustySword")&&!f.wallMarker)add("Wegweiser schnitzen",carveMarker)}break;
+        if(canCarveMarker()&&!f.wallMarker)add("Wegweiser schnitzen",carveMarker)}break;
       case "tregler":add("Brotzeit nehmen",takeBrotzeit,f.treglerReward);break;
-      case "wirtsalm":if(!f.wirtsalmWon)add("Golem ablenken",resolveGolemPeacefully,()=>!f.treglerReward||g.apples<45);break;
-      case "markt":add("Chronik erwerben",collectLedger,()=>f.marketLedger||g.apples<120);break;
+      case "wirtsalm":if(!f.wirtsalmWon)add("Golem ablenken",resolveGolemPeacefully,()=>!f.treglerReward||g.apples<golemCost());break;
+      case "markt":add("Chronik erwerben",collectLedger,()=>f.marketLedger||g.apples<ledgerCost());break;
       case "wiechs":add("Kerne sortieren",learnVariety,()=>!f.marketLedger||f.orchardSong||g.seeds<20);break;
-      case "au":add("Ernte teilen",keepVow,()=>f.vowKept||g.apples<50);break;
+      case "au":add("Ernte teilen",keepVow,()=>f.vowKept||g.apples<STORY_COSTS.vow);break;
       case "litzldorf":add("Wasserfall hören",hearSpring,f.springHeard||!f.vowKept||!f.orchardSong);break;
       case "farrenpoint":add("Wanderstock nehmen",takeStick,has("hikingStick"));break;
       case "wendelstein":add("Männlein fragen",meetMannl,f.mannlGift||!f.moorLight||!f.springHeard||!f.vowKept);break;
       case "fulinpach":if(f.finalWon&&!f.finalChoice){add("Ernte teilen",()=>decideFate("share"));add("Bach ruhen lassen",()=>decideFate("rest"))}
-        else if(!f.finalWon)add("Verhandeln",bargainPicker,()=>loreCount(2)<3||chronicleCount(2)<2||g.apples<120||g.bark<8);break;
+        else if(!f.finalWon)add("Verhandeln",bargainPicker,()=>loreCount(2)<3||chronicleCount(2)<2||g.apples<STORY_COSTS.picker||g.bark<8);break;
     }
   }
   drawHotspots($("questHotspots"),spots);
@@ -299,7 +316,7 @@ let shopShowsDoNotBuy=false;
 function shopWantsDoNotBuy(){return g.apples>=250||g.flags.doNotBuy}
 function renderShop(){
   const s=$("shop"); if(!g.unlocks.shop){s.innerHTML="";return}
-  s.innerHTML=`<pre>DER HÄNDLER AM RATHAUSPLATZ\n\n  »Alles regional. Alles nachhaltig.«\n\nEr sagt das, bevor du überhaupt gefragt hast.</pre><div class="bar"></div>`;
+  s.innerHTML=`<pre>DER HÄNDLER AM RATHAUSPLATZ\n\n  ${merchantLine()}</pre><div class="bar"></div>`;
   const art=document.createElement("pre");art.className="scene-art";art.setAttribute("role","img");
   showScene(art,"shop","Apfelhändler am Rathausplatz",false);s.prepend(art);
   for(const si of shopItems){
@@ -317,7 +334,7 @@ function renderShop(){
   if(!has("chalk") && g.flags.jenbachWon){
     const row=document.createElement("div");row.className="item shop-item";row.appendChild(itemGraphic("chalk"));
     const body=document.createElement("div");body.className="shop-item-body";body.textContent="Stück Kreide — 25 Apfelkerne ";
-    body.appendChild(btn("Kaufen",()=>{if(spend("seeds",25)){addItem("chalk");render()}},()=>g.seeds<25));row.appendChild(body);s.appendChild(row);
+    body.appendChild(btn("Kaufen",()=>{if(spend("seeds",25)){addItem("chalk");grantCrowPost();render()}},()=>g.seeds<25));row.appendChild(body);s.appendChild(row);
   }
 }
 
@@ -800,7 +817,7 @@ function renderQuests(){
   if(g.combat){renderCombat(q);return;}
 
   if(g.location==="rathaus"){
-    q.innerHTML=`<pre>RATHAUSPLATZ\n\nHier begann alles.\nDie Kiste wartet.\nDas Rathaus ebenfalls, aber auf andere Dinge.</pre>`;
+    q.innerHTML=`<pre>RATHAUSPLATZ\n\nHier begann alles.\nDie Kiste wartet. Das Rathaus ebenfalls, aber auf andere Dinge.\n\nAushang: „Für herrenlose Apfelkisten ist Sachgebiet 4 zuständig. Sachgebiet 4 ist derzeit die Kiste.“${g.water.flood.solution==="hausschutz"?"\n\nVor dem Eingang stapeln sich die Sandsäcke vom Jenbach. Zettel: „Nicht entfernen. Zuständigkeit wird geprüft.“":""}${g.flags.ending?"\n\nSeit die Treppe unter der Kiste bekannt ist, steht ein Schild daneben: „Kein Durchgang. Kein Aufgang. Kein Kommentar.“":""}</pre>`;
     return;
   }
 
@@ -824,23 +841,23 @@ function renderQuests(){
     }return;
   }
   if(g.location==="kirche"){
-    q.innerHTML=`<pre>PFARRKIRCHE HERZ JESU\n\nDie Kirche steht ruhig da.\nKeine Gegner. Kein Händler. Kein Questmarker.\n\nUngewöhnlich verdächtig.</pre>`;
+    q.innerHTML=`<pre>PFARRKIRCHE HERZ JESU\n\nDie Kirche steht ruhig da.\nKeine Gegner. Kein Händler. Kein Questmarker.\n\n${g.flags.candleLit?"Deine Kerze brennt noch. Sie fragt nicht, wie es dir geht. Sie brennt einfach.":"Ungewöhnlich verdächtig."}</pre>`;
     q.appendChild(btn(g.flags.candleLit?"Die Kerze brennt":"Eine Kerze anzünden",()=>lightCandle(),g.flags.candleLit));
     q.appendChild(btn("Still sitzen und durchatmen",()=>lightCandle(true),g.flags.candleLit));
     return;
   }
 
   if(g.location==="filze"){
-    q.innerHTML=`<pre>STERNTALER FILZE\n\nDer Bohlenweg führt durch das Moor.\nEin Moorfrosch sitzt auf einem Pfosten und beobachtet dich mit der Ruhe eines Wesens, das nie eine Steuererklärung machen musste.\n\nDie Sterntaler Filze bewahrt ein altes Hochmoor. Moorvorkommen der Gegend waren seit etwa 1900 Grundlage für Kureinrichtungen. 1973 wurde Feilnbach zum Bad erhoben.\n\nNeben dem Frosch liegt etwas Kleines aus Holz.${g.flags.ending?"\n\nSpäter siehst du ein Irrlicht. Bleib auf dem Bohlenweg.":""}</pre>`;
+    q.innerHTML=`<pre>STERNTALER FILZE\n\nDer Bohlenweg knarrt in dem Tempo, das das Moor für angemessen hält.\nEin Moorfrosch sitzt auf einem Pfosten und beobachtet dich mit der Ruhe eines Wesens, das nie eine Steuererklärung machen musste.\n\nDie Sterntaler Filze bewahren ein altes Hochmoor. Moorvorkommen der Gegend waren seit etwa 1900 Grundlage für Kureinrichtungen. 1973 wurde Feilnbach zum Bad erhoben. Das Moor hat beides nicht bemerkt.\n\n${g.flags.filzeSecret?"Der Pfosten ist leer. Der Frosch hat seinen Talisman abgegeben und sieht nicht aus, als hätte er ihn vermisst.":"Neben dem Frosch liegt etwas Kleines aus Holz."}${g.flags.ending?g.flags.moorLight?"\n\nDas Irrlicht ist bei dir. Das Moor wirkt dadurch nicht heller, nur geduldiger.":"\n\nSpäter siehst du ein Irrlicht. Bleib auf dem Bohlenweg.":""}</pre>`;
     q.appendChild(btn(g.flags.filzeSecret?"Der Frosch schweigt":"Dem Moorfrosch 40 Äpfel anbieten",filzeExplore,()=>g.flags.filzeSecret||g.apples<40));
     {const cost=g.chronicle.solved.includes("moor1900")||g.encounters.filze==="frog"?5:15;q.appendChild(btn(`Im Moos suchen (${cost} Kerne)`,filzeExploreQuiet,()=>g.flags.filzeSecret||g.seeds<cost))}
     if(g.flags.ending){q.appendChild(btn("Dem Irrlicht auf dem Bohlenweg begegnen",catchLight,!g.flags.springHeard||g.flags.moorLight));
-      q.appendChild(btn("Laterne für das Irrlicht besorgen (20 Kerne)",craftMoorLight,()=>!g.flags.springHeard||g.flags.moorLight||g.seeds<20));}
+      q.appendChild(btn(`Laterne für das Irrlicht besorgen (${lanternCost()} Kerne)`,craftMoorLight,()=>!g.flags.springHeard||g.flags.moorLight||g.seeds<lanternCost()));}
     return;
   }
 
   if(g.location==="bahnhof"){
-    q.innerHTML=`<pre>EHEMALIGER BAHNHOF\n\nVon 1897 bis 1973 fuhr die Lokalbahn zwischen Bad Aibling und Feilnbach. Im Jahr der Stilllegung wurde Feilnbach zum Bad erhoben. Teile der ehemaligen Bahntrasse sind heute Radweg.\n\nAm früheren Bahnhofsort steckt eine alte Fahrkarte zwischen zwei verwitterten Schwellen.</pre>`;
+    q.innerHTML=`<pre>EHEMALIGER BAHNHOF\n\nAbfahrt 1897, Ankunft 1973. Dazwischen fuhr die Lokalbahn zwischen Bad Aibling und Feilnbach; im Jahr der Stilllegung wurde Feilnbach zum Bad erhoben. Teile der ehemaligen Bahntrasse sind heute Radweg. Der Radweg hält sich an keinen Fahrplan.\n\n${g.flags.bahnhofFound?"Die Fahrkarte steckt in deiner Tasche. Zwischen den Schwellen bleibt die Lücke, aus der sie kam. Nächster Halt: keiner.":"Am früheren Bahnhofsort steckt eine alte Fahrkarte zwischen zwei verwitterten Schwellen."}</pre>`;
     q.appendChild(btn(g.flags.bahnhofFound?"Nichts mehr zu finden":"Zwischen den Schwellen suchen",findFahrkarte,g.flags.bahnhofFound));
     return;
   }
@@ -853,9 +870,10 @@ function renderQuests(){
       if(f.stage==="new")q.appendChild(btn("Pegel und Brücke beobachten",inspectRain));
       if(f.stage==="observed")q.appendChild(btn("Zu den Wohnhäusern gehen",()=>travel("siedlung")));
       if(f.stage==="warned"){
-        q.appendChild(btn("Einsatzkräfte am Treibholz unterstützen (30 Äpfel)",()=>solveFlood("treibholz"),()=>g.apples<30));
-        q.appendChild(btn("Rückhaltefläche aktivieren (20 Äpfel, 15 Kerne)",()=>solveFlood("rueckhalt"),()=>g.apples<20||g.seeds<15));
-        q.appendChild(btn("Hausschutz organisieren (65 Äpfel)",()=>solveFlood("hausschutz"),()=>g.apples<65));
+        const fc=floodCosts();
+        q.appendChild(btn(`Einsatzkräfte am Treibholz unterstützen (${costText(fc.treibholz)})`,()=>solveFlood("treibholz"),()=>!canAfford(fc.treibholz)));
+        q.appendChild(btn(`Rückhaltefläche aktivieren (${costText(fc.rueckhalt)})${g.water.oster.solution==="fachstelle"?" · Fachstelle kennt die Wiese":""}`,()=>solveFlood("rueckhalt"),()=>!canAfford(fc.rueckhalt)));
+        q.appendChild(btn(`Hausschutz organisieren (${costText(fc.hausschutz)})${g.water.oster.solution==="gemeinschaft"?" · Nachbarschaft vom Osterbach hilft":""}`,()=>solveFlood("hausschutz"),()=>!canAfford(fc.hausschutz)));
       }return;
     }
     if(g.flags.jenbachWon) q.innerHTML=`<pre>JENBACHPARADIES\n\nDer Bach rauscht.\nDie Ratten sind weg.\nEin Weg führt weiter ins untere Jenbachtal.\n\nDu findest es beunruhigend, wie schnell sich Gewalt als Navigation etabliert hat.</pre>`;
@@ -869,7 +887,7 @@ function renderQuests(){
 
   if(g.location==="siedlung"){
     const f=g.water.flood;
-    q.innerHTML=`<pre>WOHNHÄUSER AM JENBACH\n\n${f.stage==="solved"?"Vor den Häusern ist das Wasser zurückgegangen. Die Bewohner sind wieder da.":"Im Erdgeschoss brennt noch Licht. Die Nachbarn haben den steigenden Bach gesehen, doch nicht alle wissen, ob sie bleiben können."}\n\n${f.stage==="observed"?"Du kannst von Tür zu Tür gehen oder die Einsatzkräfte für eine koordinierte Warnung einschalten.":f.stage==="warned"?`Die gefährdeten Bewohner wurden ${f.warning==="gemeinde"?"durch Gemeinde und Einsatzkräfte":"mit den Nachbarn von Tür zu Tür"} gewarnt. Am Jenbach muss nun der Abfluss gesichert werden.`:`Dank ${f.solution==="treibholz"?"freier Brücke":f.solution==="rueckhalt"?"Rückhalt auf der Wiese":"gesicherter Eingänge"} blieben die Häuser trocken. Beim nächsten Regen achten alle gemeinsam auf amtliche Warnungen.`}</pre>`;
+    q.innerHTML=`<pre>WOHNHÄUSER AM JENBACH\n\n${f.stage==="solved"?"Vor den Häusern ist das Wasser zurückgegangen. Die Bewohner sind wieder da; eine Tür steht halb offen, wie immer.":"Im Erdgeschoss brennt noch Licht. Die Nachbarn haben den steigenden Bach gesehen, doch nicht alle wissen, ob sie bleiben können."}\n\n${f.stage==="observed"?`Du kannst von Tür zu Tür gehen oder die Einsatzkräfte für eine koordinierte Warnung einschalten.${g.water.oster.solution==="gemeinschaft"?" Einige hier kennen dich vom Osterbach und würden mitgehen.":""}${g.lore.choices.water===2?" Die Namen an den Türen hast du an der Brücke schon gelernt.":""}`:f.stage==="warned"?`Die gefährdeten Bewohner wurden ${f.warning==="gemeinde"?"durch Gemeinde und Einsatzkräfte":"mit den Nachbarn von Tür zu Tür"} gewarnt. Am Jenbach muss nun der Abfluss gesichert werden.`:`Dank ${f.solution==="treibholz"?"freier Brücke":f.solution==="rueckhalt"?"Rückhalt auf der Wiese":"gesicherter Eingänge"} blieben die Häuser trocken. Beim nächsten Regen achten alle gemeinsam auf amtliche Warnungen.${f.solution==="hausschutz"&&g.flags.ending?"\n\nDie Sandsäcke vor den Eingängen sind zu einer Bank geworden. Jemand sitzt darauf und sieht dem Bach beim Nichtstun zu.":""}`}</pre>`;
     if(f.stage==="observed"){
       q.appendChild(btn("Mit Nachbarn von Tür zu Tür warnen",()=>warnHomes("nachbarn")));
       q.appendChild(btn("Gemeinde und Einsatzkräfte informieren",()=>warnHomes("gemeinde")));
@@ -880,10 +898,10 @@ function renderQuests(){
 
   if(g.location==="wall"){
     if(!g.flags.wallPassed){
-      q.innerHTML=`<pre>UNTERES JENBACHTAL\n\n############################################\n############################################\n############################################\n\nEine Mauer versperrt den Weg.\nZwischen ihren Steinen wachsen zwei kleine Apfelbäume. Jemand hat eine Kreidelinie gezogen, aber vor einer Tür aufgehört.\n\nDu versuchst, entschlossen auszusehen. Die Mauer bleibt sachlich.</pre>`;
+      q.innerHTML=`<pre>UNTERES JENBACHTAL\n\n############################################\n############################################\n############################################\n\nEine Mauer versperrt den Weg.\nZwischen ihren Steinen wachsen zwei kleine Apfelbäume. Jemand hat eine Kreidelinie gezogen, aber vor einer Tür aufgehört.${g.water.flood.solution==="treibholz"?"\nAm Fuß der Mauer liegt gespaltenes Treibholz von der Jenbachbrücke. Die Einsatzkräfte haben es hier abgelegt; die Mauer hat es nicht angenommen.":""}\n\nDu versuchst, entschlossen auszusehen. Die Mauer bleibt sachlich.</pre>`;
       const d=document.createElement("div");d.className="questbox";
       d.appendChild(btn(has("chalk")?"Eine Tür auf die Mauer zeichnen":"Mauer schlagen",()=>has("chalk")?drawDoor():say("Die Mauer nimmt 0 Schaden. Deine Hand nimmt die Kritik persönlich.","bad")));
-      if(has("rustySword")&&!g.flags.wallMarker)d.appendChild(btn("Mit Obstmesser Wegweiser schnitzen",carveMarker));
+      if(canCarveMarker()&&!g.flags.wallMarker)d.appendChild(btn(has("rustySword")?"Mit Obstmesser Wegweiser schnitzen":"Treibholz als Wegweiser aufstellen",carveMarker));
       {const apples=g.encounters.bahnhof==="route"?5:20;d.appendChild(btn(`Ortskundige nach einem Umweg fragen (${apples} Äpfel, 10 Kerne)`,bypassWall,()=>g.apples<apples||g.seeds<10))}
       q.appendChild(d);
     } else {
@@ -893,7 +911,7 @@ function renderQuests(){
   }
 
   if(g.location==="tregler"){
-    q.innerHTML=`<pre>TREGLER ALM\n\nDu erreichst die Alm.\nDie Aussicht über Bad Feilnbach ist ausgezeichnet.\n\nAuf einem Tisch liegt eine Brotzeit mit einem Zettel:\n\n  »Für denjenigen, der glaubt, Äpfel seien eine Mahlzeit.«</pre>`;
+    q.innerHTML=`<pre>TREGLER ALM\n\nDu erreichst die Alm.\nDie Aussicht über Bad Feilnbach ist ausgezeichnet. Die Hüttenwirtin sieht sie jeden Tag und findet sie trotzdem gut.\n\n${g.flags.treglerReward?"Der Tisch ist abgeräumt. Der Zettel liegt noch da; die Hüttenwirtin hebt Zettel auf, nicht Brotzeiten.":"Auf einem Tisch liegt eine Brotzeit mit einem Zettel:"}\n\n  »Für denjenigen, der glaubt, Äpfel seien eine Mahlzeit.«${g.flags.golemCrumb?"\n\nNeben dem Zettel: eine einzelne Schmalznudel. Niemand rührt sie an. Niemand erklärt sie.":""}</pre>`;
     q.appendChild(btn(g.flags.treglerReward?"Brotzeit bereits gegessen":"Brotzeit nehmen",takeBrotzeit,g.flags.treglerReward));
     q.appendChild(btn("Brotzeit teilen und Most mitnehmen",packBrotzeit,g.flags.treglerReward));
     return;
@@ -902,42 +920,42 @@ function renderQuests(){
   if(g.location==="wirtsalm"){
     if(g.flags.wirtsalmWon) q.innerHTML=`<pre>WIRTSALM / OBERES JENBACHTAL\n\nRuhe. Berge. Luft.\nKeine Schmalznudel bewegt sich selbstständig.\n\nEin guter Tag.</pre>`;
     else {
-      q.innerHTML=`<pre>WIRTSALM / OBERES JENBACHTAL\n\nVor dir bebt etwas Rundes. Es riecht nach Fettgebäck und Zorn.\n\nDu kannst kämpfen oder ihn mit einer früheren Tregler Brotzeit und 45 Äpfeln beruhigen.</pre>`;
+      q.innerHTML=`<pre>WIRTSALM / OBERES JENBACHTAL\n\nVor dir bebt etwas Rundes. Es riecht nach Fettgebäck und Zorn.${g.flags.wallRoute==="chalk"?"\nEs starrt immer wieder ins Tal, wo deine Kreidetür steht, und versteht sie nicht. Das macht es nicht ruhiger.":""}${g.water.flood.warning==="gemeinde"?"\nAn einem Tisch sitzen zwei Einsatzkräfte vom Jenbach. Sie nicken dir zu; sie würden eine Brotzeit mittragen.":""}\n\nDu kannst kämpfen oder ihn mit einer früheren Tregler Brotzeit und ${golemCost()} Äpfeln beruhigen.</pre>`;
       q.appendChild(btn("Schmalznudel-Golem bekämpfen",()=>{startCombat("golem");render()}));
-      q.appendChild(btn("Golem mit Brotzeit ablenken (45 Äpfel)",resolveGolemPeacefully,()=>!g.flags.treglerReward||g.apples<45));
+      q.appendChild(btn(`Golem mit Brotzeit ablenken (${golemCost()} Äpfel)`,resolveGolemPeacefully,()=>!g.flags.treglerReward||g.apples<golemCost()));
     }
     return;
   }
 
   if(g.location==="markt"){
-    q.innerHTML="<pre>APFELMARKT AM RATHAUSPLATZ\n\nZwischen den alten Apfelsorten zeigt dir die Händlerin eine lose Seite aus der Marktchronik. Der Apfelmarkt begann 1992; diese Seite blickt viel weiter zurück.\n\n1992 steht ordentlich am Rand. Darunter: FULINPAH, 980.\n\nDu kannst die Chronik kaufen oder beim Sortieren der Kerne mithelfen.</pre>";
-    q.appendChild(btn("Chronik erwerben (120 Äpfel)",collectLedger,()=>g.flags.marketLedger||g.apples<120));
-    {const cost=g.chronicle.solved.includes("apfel1992")?15:35;q.appendChild(btn(`Beim Sortieren helfen (${cost} Kerne)`,borrowLedger,()=>g.flags.marketLedger||g.seeds<cost))}return;
+    q.innerHTML=`<pre>APFELMARKT AM RATHAUSPLATZ\n\n»Alte Sorten, junge Preise!« ruft jemand, dem beides egal ist.\nZwischen den Kisten zeigt dir die Händlerin eine lose Seite aus der Marktchronik. Der Apfelmarkt begann 1992; diese Seite blickt viel weiter zurück.\n\n1992 steht ordentlich am Rand. Darunter: FULINPAH, 980.${g.flags.golemRoute==="brotzeit"?"\n\nAm Nachbarstand verkauft die Hüttenwirtin von der Wirtsalm Most und redet für dich mit; die Chronik wird dadurch billiger.":""}${g.flags.ratRoute==="locken"?"\n\nZwischen den Ständen: der Bachrattenkönig mit eigenem Stand. Er sortiert Kerne gegen Lohn und grüßt dich wie einen Geschäftspartner.":g.flags.ratRoute==="kampf"?"\n\nAuf einem Sortenschild sitzt die Krähe und erzählt vom Rattenkönig. Die Händler lassen dir mehr Platz, als du brauchst.":""}\n\n${g.flags.marketLedger?"Die Chronik liegt in deiner Tasche. Die Händlerin verkauft die Lücke im Regal jetzt als Rarität.":"Du kannst die Chronik kaufen oder beim Sortieren der Kerne mithelfen."}</pre>`;
+    q.appendChild(btn(`Chronik erwerben (${ledgerCost()} Äpfel)`,collectLedger,()=>g.flags.marketLedger||g.apples<ledgerCost()));
+    {const cost=sortCost();q.appendChild(btn(`Beim Sortieren helfen (${cost} Kerne)`,borrowLedger,()=>g.flags.marketLedger||g.seeds<cost))}return;
   }
   if(g.location==="wiechs"){
-    q.innerHTML="<pre>STREUOBSTWIESEN BEI WIECHS\n\nDie Bäume tragen viele Sorten. Einer hat seinen Namen verloren.\n\nSortiere 20 Apfelkerne nach der Chronik oder vergleiche eine eigene Ernte der alten Sorte. Der Baum wird sich vielleicht erinnern.</pre>";
+    q.innerHTML=`<pre>STREUOBSTWIESEN BEI WIECHS\n\nDie Bäume tragen viele Sorten. Jeder hat ein Schild, und jedes Schild hat eine Meinung.\n\n${g.flags.orchardSong?"Der eine Baum hat seinen Namen zurück. Sein Schild bleibt trotzdem leer; der Baum besteht darauf.":"Einer hat seinen Namen verloren.\n\nSortiere 20 Apfelkerne nach der Chronik oder vergleiche eine eigene Ernte der alten Sorte. Der Baum wird sich vielleicht erinnern."}</pre>`;
     q.appendChild(btn("Kerne sortieren (20)",learnVariety,()=>!g.flags.marketLedger||g.flags.orchardSong||g.seeds<20));
     q.appendChild(btn("Eigene alte Ernte vergleichen",learnVarietyFromTree,!g.flags.marketLedger||g.flags.orchardSong||!g.flags.oldHarvest));return;
   }
   if(g.location==="au"){
-    q.innerHTML="<pre>AU / TAXAKAPELLE\n\nDie Taxakapelle geht auf ein Gelübde Balthasar Fuetterers von 1647 zurück. Der Name Taxa kommt vom bairischen „Daxn” für Fichten- und Tannenzweige, die früher um das Kirchlein standen.\n\nDein Versprechen ist bescheidener: Gib eine Ernte weiter, statt alles selbst zu essen.\n\nDie Kapelle bleibt still. Das ist ihr gutes Recht.</pre>";
-    q.appendChild(btn("50 Äpfel für andere zurücklegen",keepVow,()=>g.flags.vowKept||g.apples<50));
+    q.innerHTML=`<pre>AU / TAXAKAPELLE\n\nDie Taxakapelle geht auf ein Gelübde Balthasar Fuetterers von 1647 zurück. Der Name Taxa kommt vom bairischen „Daxn” für Fichten- und Tannenzweige, die früher um das Kirchlein standen.\n\n${g.flags.vowKept?"Dein Versprechen liegt hier wie die Zweige: unauffällig, aber nicht zu übersehen.":"Dein Versprechen ist bescheidener: Gib eine Ernte weiter, statt alles selbst zu essen."}${g.flags.auMost?"\n\nNeben der Tür stand eine Flasche Most vom Jenbach. Du hast sie mitgenommen; der Zettel liegt noch da.":""}\n\nDie Kapelle bleibt still. Das ist ihr gutes Recht.</pre>`;
+    q.appendChild(btn(`${STORY_COSTS.vow} Äpfel für andere zurücklegen`,keepVow,()=>g.flags.vowKept||g.apples<STORY_COSTS.vow));
     q.appendChild(btn("20 Kerne für neue Bäume stiften",keepSeedVow,()=>g.flags.vowKept||g.seeds<20));return;
   }
   if(g.location==="litzldorf"){
-    q.innerHTML="<pre>LITZLDORFER WASSERFALL\n\nDas Wasser fällt schnell. Das Rindenzeichen erzählt aber von einem langsamen Bach.\n\nHör auf die Pausen zwischen den Tropfen. Dafür brauchst du ein gehaltenes Versprechen und den Namen einer alten Sorte.</pre>";
+    q.innerHTML=`<pre>LITZLDORFER WASSERFALL\n\nDas Wasser fällt schnell. Das Rindenzeichen erzählt aber von einem langsamen Bach.\n\n${g.flags.springHeard?"Du hast die Pausen gehört. Seitdem klingt der Wasserfall, als würde er mitzählen, und zwar rückwärts.":"Hör auf die Pausen zwischen den Tropfen. Dafür brauchst du ein gehaltenes Versprechen und den Namen einer alten Sorte."}</pre>`;
     q.appendChild(btn("Auf die Pausen hören",hearSpring,g.flags.springHeard||!g.flags.vowKept||!g.flags.orchardSong));
     q.appendChild(btn("Chronik und Wasserlauf vergleichen",readSpring,g.flags.springHeard||!g.flags.vowKept||!g.flags.orchardSong||!has("ledger")));return;
   }
   if(g.location==="farrenpoint"){
-    q.innerHTML="<pre>FARRENPOINT\n\nUnter dir liegen die Orte deiner Reise. Vor dir liegt der Wendelstein.\n\nZwischen den Steinen steckt ein Wanderstock. Keine schlechte Waffe gegen einen Feind, der Äpfel für Inventar hält.</pre>";
+    q.innerHTML=`<pre>FARRENPOINT\n\nDer Wind kommt von überall und hat es eilig. Unter dir liegen die Orte deiner Reise. Vor dir liegt der Wendelstein.\n\n${has("hikingStick")?"Der Wanderstock ist bei dir. Zwischen den Steinen pfeift der Wind durch die Lücke, als hätte er ihn vermisst.":"Zwischen den Steinen steckt ein Wanderstock. Keine schlechte Waffe gegen einen Feind, der Äpfel für Inventar hält."}${g.flags.wallRoute==="path"&&!has("hikingStick")?"\n\nNeben einem Steinmann liegt zugeschnittenes Holz mit einem eingeritzten Zeichen: Der Ortskundige aus dem Jenbachtal war vor dir hier.":""}</pre>`;
     q.appendChild(btn("Wanderstock nehmen",takeStick,has("hikingStick")));
-    q.appendChild(btn("Wanderstock aus Fallholz schnitzen (10 Kerne)",craftStick,()=>has("hikingStick")||!has("rustySword")||g.seeds<10));return;
+    q.appendChild(btn(stickCost()?"Wanderstock aus Fallholz schnitzen (10 Kerne)":"Wanderstock aus dem bereitgelegten Holz schnitzen",craftStick,()=>has("hikingStick")||!has("rustySword")||g.seeds<stickCost()));return;
   }
   if(g.location==="wendelstein"){
-    q.innerHTML="<pre>WENDELSTEIN\n\nAm Wendelstein tauchen die Männlein zwischen zwei Steinen auf. Mit Gelübde, Klang der Quelle und Moorlicht hören sie dir zu. Ohne Moorlicht kannst du ihnen stattdessen eine Ernte anbieten.\n\nEines fragt: »Hast du etwas geteilt?« Das andere: »Hast du etwas stehen lassen?«</pre>";
+    q.innerHTML=`<pre>WENDELSTEIN\n\n${g.flags.mannlGift?"Die Männlein sind wieder zwischen den Steinen verschwunden. Eines hat den Ring erwähnt; keines die Äpfel.":`Am Wendelstein tauchen die Männlein zwischen zwei Steinen auf. Mit Gelübde, Klang der Quelle und Moorlicht hören sie dir zu. Ohne Moorlicht kannst du ihnen stattdessen eine Ernte anbieten.${g.lore.choices.promise===2?"\nEines blättert in deinem Wegbuch und findet das Gelübde. Geschriebenes zählt hier als Anzahlung.":""}\n\nEines fragt: »Hast du etwas geteilt?« Das andere: »Hast du etwas stehen lassen?«`}</pre>`;
     q.appendChild(btn("Die Männlein um Hilfe bitten",meetMannl,g.flags.mannlGift||!g.flags.moorLight||!g.flags.springHeard||!g.flags.vowKept));
-    q.appendChild(btn("Mit den Männlein 90 Äpfel teilen",tradeMannl,()=>g.flags.mannlGift||!g.flags.springHeard||!g.flags.vowKept||g.apples<90));return;
+    q.appendChild(btn(`Mit den Männlein ${mannlCost()} Äpfel teilen`,tradeMannl,()=>g.flags.mannlGift||!g.flags.springHeard||!g.flags.vowKept||g.apples<mannlCost()));return;
   }
   if(g.location==="fulinpach"){
     q.innerHTML=g.flags.finalWon ? "<pre>FULINPACH · DER LANGSAME BACH\n\nAuf einer Rindenlasche steht Fulinpah, eine frühe Schreibweise des Ortsnamens um 980. Später begegnet auch Fulinpach. Der alte Name bezeichnet einen langsam fließenden Bach. Unter der Apfelkiste wird aus dem Namen eine Stimme.\n\nNeben dem Pflücker liegen deine sechs Spuren. Ein Name, der blieb. Holz, das das Moor bewahrte. Wasser, das seinen Weg suchte. Ein Baum, ein Versprechen und Stimmen vom Berg.\n\nDie Stimme fragt: Was soll mit der Ernte geschehen?</pre>" : "<pre>FULINPACH · DER LANGSAME BACH\n\nUnter den Wurzeln stapeln sich Körbe voller Äpfel. Auf jedem steht ein Sortenname; manche sind so alt, dass die Tinte kaum noch trägt.\n\nDer letzte Pflücker hat sie gesammelt, damit niemand einen Namen vergisst. Jetzt bewacht er die Ernte und lässt niemanden mehr hinein. Dein Wegbuch liegt offen in deiner Hand.</pre>";
@@ -949,7 +967,7 @@ function renderQuests(){
     }else {
     if(loreCount(2)<3||chronicleCount(2)<2){const p=document.createElement("p");p.className="quest-hint";p.textContent=`Zum Abschluss fehlen ${Math.max(0,3-loreCount(2))} Wegbuch-Spuren und ${Math.max(0,2-chronicleCount(2))} Seiten der Ortschronik. Die Chronik öffnest du im Questbuch.`;q.appendChild(p)}
     q.appendChild(btn("Dem Pflücker entgegentreten",enterFinal,loreCount(2)<3||chronicleCount(2)<2));
-    q.appendChild(btn("Mit dem Pflücker verhandeln (120 Äpfel, 8 Rindenzeichen)",bargainPicker,()=>loreCount(2)<3||chronicleCount(2)<2||g.apples<120||g.bark<8));
+    q.appendChild(btn(`Mit dem Pflücker verhandeln (${STORY_COSTS.picker} Äpfel, 8 Rindenzeichen)`,bargainPicker,()=>loreCount(2)<3||chronicleCount(2)<2||g.apples<STORY_COSTS.picker||g.bark<8));
     }
     return;
   }

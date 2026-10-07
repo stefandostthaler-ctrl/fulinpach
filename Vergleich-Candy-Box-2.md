@@ -130,15 +130,21 @@ Ende greifen oder die Endgegner ausnehmen, sonst verliert der letzte Pflücker s
   ergänzt). Entscheidung: Besitz zählt, nicht Anlegen, damit niemand auf der Alm strandet.
   Alle Wege laufen über eine Prüfung. Der Goldene Apfel bringt +1 Apfel pro Sekunde und
   seine Beschreibung nennt das gewählte Ende.
-- **Issue 7, Wirtschaft: geplant, wartet auf Freigabe** (Änderung `rebalance-progression`).
-  Das Issue verlangt, die Bilanztabelle vor der Umsetzung vorzulegen. Sie steht in
+- **Issue 7, Wirtschaft: umgesetzt nach der vorgelegten Tabelle, Zahlen anpassbar**
+  (Änderung `rebalance-progression`). Die Tabelle steht in
   `openspec/changes/rebalance-progression/design.md`: sechs passive Ausbauten der
-  Streuobstwiese, von 1 auf 11 Äpfel pro Sekunde, jeweils an eine Quest gebunden, ohne neue
-  Plätze oder Klickschleifen. Preisänderungen nur nach der Karte, maßvoll.
-- **Issue 8, Humor und Folgen: geplant** (Änderung `refine-humor-and-consequences`). Die
-  Folgen-Tabelle in `openspec/changes/refine-humor-and-consequences/design.md` nennt für jede
-  gespeicherte Entscheidung eine spätere Antwort im Spiel, dazu eine Stimme je Ort. Sollte
-  nach Issue 7 umgesetzt werden, weil mehrere Folgen Preise senken.
+  Streuobstwiese („Ausbau“ unter den Pflanzplätzen), von 1 auf 11 Äpfel pro Sekunde,
+  jeweils an eine Quest gebunden, ohne neue Plätze oder Klickschleifen. Alle Zahlen stehen
+  in `items.js` unter `UPGRADES` und `STORY_COSTS`; Rückmeldungen des Autors lassen sich
+  dort ohne weitere Codeänderung eintragen.
+- **Issue 8, Humor und Folgen: umgesetzt** (Änderung `refine-humor-and-consequences`). Jede
+  gespeicherte Entscheidung hat jetzt mindestens eine spätere Antwort im Spiel (Tabelle in
+  `openspec/changes/refine-humor-and-consequences/design.md`): geänderte Kosten, eigene
+  Texte oder eine einmalige Belohnung, nie ein gesperrter Weg. Der Händler kommentiert den
+  Spielstand, wiederholte Aktionen bekommen Reaktionen, jede Szene liest sich nach
+  Abschluss ihrer Quest als abgeschlossen. Der stille Hauptbogen und die Chronik sind
+  unverändert; eine Meta-Formulierung („der Frosch im Spiel“) wurde aus der Chronik
+  entfernt.
 
 ## Vorschlag zur Reihenfolge
 

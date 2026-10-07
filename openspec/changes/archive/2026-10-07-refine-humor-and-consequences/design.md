@@ -64,6 +64,14 @@ counts. Farrenpoint: wind. Wendelstein: tiny voices, questions before help. Fuli
 - **Consistency scan**: a headless script lists every scene text and journal step with the
   flags it depends on and prints texts for each terminal state; reviewed by hand.
 
+## Historical claims check (task 3.2)
+
+No new historical statement was added. All new texts describe game events (rats, Golem,
+Hüttenwirtin, Sandsäcke, Kreidetür). The chronicle paragraphs are unchanged except for one
+removed meta phrase ("Der Frosch im Spiel") in the Sterntaler Filze entry. Facts that reappear
+in rewritten scene texts (1897/1973 Lokalbahn, 1973 Bad, seit 1900 Moor, 1647 Taxakapelle,
+1992 Apfelmarkt, 980 Fulinpah) were already present and keep their sources in story.js.
+
 ## Risks / Trade-offs
 
 - [Cheaper costs from consequences interact with issue #7's curve] → implement #8 after #7 so

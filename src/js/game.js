@@ -8,7 +8,7 @@
 
 const SAVE_KEY = "fulinpach_bad_feilnbach_v3";
 const OLD_SAVE_KEY = "candy_box_3_bad_feilnbach_de_v2";
-const VERSION = 12;
+const VERSION = 13;
 const MAX_OFFLINE_SECONDS = 8*3600; // Längste Abwesenheit, die als Ernte angerechnet wird
 
 const fresh = () => ({
@@ -23,6 +23,7 @@ const fresh = () => ({
   shopBought: {},
   unlocks: { eat:false, throw:false, wrapper:false, farm:false, shop:false, inventory:false, map:false, journal:true, quests:false, box:false, save:true },
   farm:{selection:"young",harvests:0,plots:[null,null,null]},
+  upgrades:{},
   lore:{opened:{},choices:{}},
   chronicle:{visited:["rathaus"],solved:[]},
   encounters:{},
@@ -116,12 +117,15 @@ function updateUnlocks(){
 function eatApples(){
   const amt = Math.max(1, Math.min(20, Math.floor(g.apples)));
   if(!spend("apples", amt)) return;
+  const wasFull=g.hp>=g.maxHp;
   g.eaten += amt;
   const old = g.maxHp;
   g.maxHp = 100 + g.insuranceBonus + Math.floor(g.eaten / 20) * 2 + (g.flags.candleLit?10:0);
   g.hp = Math.min(g.maxHp, g.hp + Math.ceil(amt/2));
   say(`Du isst ${amt} Äpfel. Ein Obstbauer nickt anerkennend. Nach dem zwanzigsten Apfel nicht mehr.`);
   if(g.maxHp>old) say("Deine maximalen LP steigen. Obst ist jetzt offenbar Medizin.","good");
+  // Wer mit vollen LP weiter isst, bekommt alle zehn Bissen einen Kommentar.
+  if(wasFull){g.flags.fullBites=(g.flags.fullBites||0)+1;if(g.flags.fullBites%10===0)say(["Du bist satt. Die Äpfel sind es auch.","Ein Obstbauer notiert etwas. Es sieht nicht nach Lob aus.","Der Händler fragt, ob du auch einfach nur Äpfel zählen könntest. Das wäre billiger."][(g.flags.fullBites/10-1)%3])}
   checkAppleADay();
   render();
 }
@@ -129,7 +133,7 @@ function eatApples(){
 function leaveApples(){
   if(!spend("apples", 10)) return;
   g.thrown += 10;
-  say("Du legst 10 Äpfel neben die Kiste. Wegwerfen wäre selbst für dieses Spiel zu dumm.");
+  say(g.upgrades.crowPost?"Du legst 10 Äpfel neben die Kiste. Die Krähe sieht zu und bringt sie dir später zurück. Ihr Lieferdienst kennt keine Richtung.":g.flags.crow&&g.flags.crowFeed>=5?"Du legst 10 Äpfel neben die Kiste. Die Krähe mustert sie wie ein Angebot, das unter ihrem Niveau liegt.":"Du legst 10 Äpfel neben die Kiste. Wegwerfen wäre selbst für dieses Spiel zu dumm.");
   if(g.thrown>=30 && !g.flags.crow){
     g.flags.crow=true; g.stats.secrets++;
     say("Eine Krähe landet neben der Kiste, mustert dich und beschließt, dass du leicht zu erziehen bist.","secret");
@@ -171,6 +175,7 @@ function harvestPlot(index){
   g.apples+=apples;g.seeds+=variety.seeds;g.farm.harvests++;g.farm.plots[index]=null;
   say(`Ernte auf Platz ${index+1}: ${apples} Äpfel und ${variety.seeds} Kerne.`,"good");
   if(plot.variety==="old"&&!g.flags.oldHarvest){g.flags.oldHarvest=true;g.bark++;say("Unter der alten Sorte findest du ein Rindenzeichen.","secret")}
+  if(g.water.flood.solution==="rueckhalt"&&!g.flags.retentionSeeds){g.flags.retentionSeeds=true;g.seeds+=10;say("Auf der Rückhaltewiese vom Jenbach hat das Wasser Kerne angeschwemmt. Die Gemeinde schickt dir 10 davon; der Rest bleibt als Schwemmgut amtlich.","good")}
   if(g.farm.harvests>=3&&!g.flags.farmMilestone){g.flags.farmMilestone=true;g.appleRate++;say("Drei Ernten! Deine kleine Streuobstwiese bringt jetzt dauerhaft 1 Apfel pro Sekunde zusätzlich.","good")}
   render();saveGame();
 }
@@ -257,10 +262,13 @@ function travel(place){
     g.chronicle.visited.push(place);
     if(["rathaus","bahnhof","filze","kirche","au","markt","wiechs","litzldorf"].includes(place))say("Eine neue Seite der Ortschronik ist im Questbuch aufgeschlagen.","secret");
   }
-  if(place==="osterbach")say(g.water.oster.stage==="solved"?"Am Wasserspielplatz Am Osterbach gluckert wieder Wasser durch die Holzrinnen.":"Am Wasserspielplatz Am Osterbach sind die Holzrinnen trocken.");
+  if(place==="osterbach"){
+    say(g.water.oster.stage==="solved"?"Am Wasserspielplatz Am Osterbach gluckert wieder Wasser durch die Holzrinnen.":"Am Wasserspielplatz Am Osterbach sind die Holzrinnen trocken.");
+    if(g.flags.ending&&g.water.oster.solution==="versorgung"&&!g.flags.rinnenRace){g.flags.rinnenRace=true;g.seeds+=5;say("Die Kinder lassen Äpfel durch deine Zuleitung um die Wette schwimmen. Der Sieger bekommt nichts, du bekommst die Kerne der Verlierer: 5 Stück.","good")}
+  }
   if(place==="biberdamm")say("Oberhalb des Platzes hält ein Biberdamm Wasser zurück. Der Biber sieht den Damm als Wohnung, nicht als Problem.");
   if(place==="siedlung")say("An den Wohnhäusern am Jenbach liegt der Hof tiefer als die Straße. Du siehst nach, ob alle die Warnung erhalten haben.");
-  if(place==="rathaus") say("Du kehrst zum Rathausplatz zurück. Die Kiste steht noch da. Offenbar ist niemand zuständig.");
+  if(place==="rathaus") say(g.water.flood.solution==="hausschutz"?"Du kehrst zum Rathausplatz zurück. Vor dem Rathaus stapeln sich die Sandsäcke vom Jenbach; ein Zettel darauf: „Nicht entfernen. Zuständigkeit wird geprüft.“":"Du kehrst zum Rathausplatz zurück. Die Kiste steht noch da. Offenbar ist niemand zuständig.");
   if(place==="kirche"){
     g.flags.churchVisited=true;
     say("Du stehst an der Pfarrkirche Herz Jesu. Für einen Moment ist sogar das Spiel still.");
@@ -289,16 +297,19 @@ function travel(place){
   }
   if(place==="tregler"){
     g.flags.treglerVisited=true;
-    say("Du erreichst die Tregler Alm. Die Aussicht reicht weit über die Streuobstwiesen. Hinter dir atmet etwas im Gebüsch.");
+    say(g.flags.wirtsalmWon?"Du erreichst die Tregler Alm. Die Aussicht reicht weit über die Streuobstwiesen. Im Gebüsch atmet nichts mehr; es ist nur noch Gebüsch.":"Du erreichst die Tregler Alm. Die Aussicht reicht weit über die Streuobstwiesen. Hinter dir atmet etwas im Gebüsch.");
+    if(g.flags.golemRoute==="kampf"&&!g.flags.golemCrumb){g.flags.golemCrumb=true;g.cider++;say("Auf dem Tisch liegt eine einzelne Schmalznudel. Die Hüttenwirtin sagt, sie sei einfach hereingekommen und habe sich hingesetzt. Dazu stellt sie dir eine Flasche Most hin, ohne Fragen.","good")}
   }
   if(place==="wirtsalm"){
     if(!g.flags.wallPassed){say("Der Weg Richtung Wirtsalm endet vor der Mauer.","bad");g.location="wall";render();return;}
     g.flags.wirtsalmVisited=true;
-    say(!g.flags.wirtsalmWon?"Der Schmalznudel-Golem bewacht den Weg. Bekämpfen oder mit einer Brotzeit ablenken?":"Bei der Wirtsalm ist wieder Ruhe eingekehrt. Niemand spricht über den Golem. Das ist vermutlich besser so.");
+    say(!g.flags.wirtsalmWon?(g.flags.wallRoute==="chalk"?"Der Schmalznudel-Golem bewacht den Weg. Er starrt auf deine Kreidetür unten im Tal und versteht sie nicht. Bekämpfen oder mit einer Brotzeit ablenken?":"Der Schmalznudel-Golem bewacht den Weg. Bekämpfen oder mit einer Brotzeit ablenken?"):"Bei der Wirtsalm ist wieder Ruhe eingekehrt. Niemand spricht über den Golem. Das ist vermutlich besser so.");
   }
   if(place==="markt"){
-    g.flags.marketVisited=true;
+    const first=!g.flags.marketVisited;g.flags.marketVisited=true;
     say("Am Rathausplatz beginnt der Apfelmarkt. Zwischen alten Sortennamen steht plötzlich FULINPAH auf einer Kiste.");
+    if(first&&g.flags.ratRoute==="locken"){const stolen=Math.min(5,Math.floor(g.apples));g.apples-=stolen;say(`Der Bachrattenkönig hat einen Stand. Er verkauft deine ${stolen} Äpfel, die ihm beim Vorbeigehen aus der Tasche gefallen sind, und grüßt freundlich.`,"bad")}
+    if(first&&g.flags.ratRoute==="kampf")say("Die Krähe sitzt auf einem Sortenschild und erzählt jedem, dass du den Rattenkönig erledigt hast. Die Händler geben dir mehr Platz, als du brauchst.");
   }
   if(place==="wiechs"){
     g.flags.orchardVisited=true;
@@ -306,7 +317,8 @@ function travel(place){
   }
   if(place==="au"){
     g.flags.auVisited=true;
-    say("Au. Die Taxakapelle steht am Aubach. Ein altes Gelübde gab der Kapelle ihren Anfang. Deines wartet noch.");
+    say(g.flags.vowKept?"Au. Die Taxakapelle steht am Aubach. Dein Versprechen ist hier schon bekannt; die Zweige nicken, soweit Zweige das können.":"Au. Die Taxakapelle steht am Aubach. Ein altes Gelübde gab der Kapelle ihren Anfang. Deines wartet noch.");
+    if(g.water.flood.warning==="nachbarn"&&!g.flags.auMost){g.flags.auMost=true;g.cider++;say("Vor der Kapelle steht eine Flasche Most mit Zettel: „Vom Jenbach. Für den, der geklopft hat.“ Die Nachbarn haben dich bis hierher gefunden.","good")}
   }
   if(place==="litzldorf"){
     g.flags.litzldorfVisited=true;
@@ -356,20 +368,28 @@ function solveOster(method){
 function inspectRain(){
   if(g.location!=="jenbach"||g.water.oster.stage!=="solved"||!g.flags.jenbachWon||g.water.flood.stage!=="new")return;
   g.water.flood.stage="observed";
-  say("Starker Regen, ein steigender Pegel und angeschwemmtes Holz: Am Jenbach sind die Häuser unterhalb der Brücke gefährdet. Zuerst müssen die Menschen Bescheid wissen.","bad");render();saveGame();
+  const w=g.lore.choices.water;
+  say(`Starker Regen, ein steigender Pegel und angeschwemmtes Holz: Am Jenbach sind die Häuser unterhalb der Brücke gefährdet.${w===1?" Deine Zeichnung der zwei Wellen stimmt: Die zweite weicht genau dort aus, wo die Häuser stehen.":w===2?" Du weißt, wer dort wohnt. Das macht die Warnung nicht leichter, aber schneller.":""} Zuerst müssen die Menschen Bescheid wissen.`,"bad");render();saveGame();
 }
 function warnHomes(method){
   const f=g.water.flood;if(f.stage!=="observed"||g.location!=="siedlung"||!["nachbarn","gemeinde"].includes(method))return;
   f.stage="warned";f.warning=method;
-  say(method==="nachbarn"?"Du gehst mit den Nachbarn von Tür zu Tür. Alle im gefährdeten Bereich wissen Bescheid und bringen sich in Sicherheit.":"Du informierst die Gemeinde. Die Einsatzkräfte warnen die gefährdeten Häuser und sichern den Zugang zum Bach.","good");
+  const knowsNames=g.lore.choices.water===2,fromOster=g.water.oster.solution==="gemeinschaft";
+  say(method==="nachbarn"?`Du gehst mit den Nachbarn von Tür zu Tür.${knowsNames?" Die Namen kennst du schon von der Brücke; niemand muss zweimal klopfen.":""}${fromOster?" Einige erkennen dich vom Osterbach und holen die anderen selbst.":""} Alle im gefährdeten Bereich wissen Bescheid und bringen sich in Sicherheit.`:"Du informierst die Gemeinde. Die Einsatzkräfte warnen die gefährdeten Häuser und sichern den Zugang zum Bach.","good");
   say("Jetzt zurück zum Jenbach: Das Wasser steigt weiter. Die Einsatzkräfte übernehmen die Arbeiten am Ufer.","bad");render();saveGame();
+}
+// Folgen früherer Entscheidungen (Issue #8): Die Osterbach-Lösung senkt später Kosten am Jenbach.
+function floodCosts(){
+  const o=g.water.oster.solution;
+  return {treibholz:{apples:30},rueckhalt:{seeds:o==="fachstelle"?10:15,apples:20},hausschutz:{apples:o==="gemeinschaft"?50:65}};
 }
 function solveFlood(method){
   const f=g.water.flood;if(f.stage!=="warned"||g.location!=="jenbach")return;
+  const o=g.water.oster.solution,costs=floodCosts();
   const routes={
-    treibholz:{cost:{apples:30},text:"Du versorgst die Einsatzkräfte. Sie räumen das Treibholz an der Brücke kontrolliert aus dem Abfluss. Das Wasser kann wieder passieren."},
-    rueckhalt:{cost:{seeds:15,apples:20},text:"Die Gemeinde aktiviert mit Helfern eine dafür vorgesehene Rückhaltefläche abseits der Häuser. Der Scheitel sinkt."},
-    hausschutz:{cost:{apples:65},text:"Die Einsatzkräfte sichern die gefährdeten Eingänge und leiten das Oberflächenwasser von den Häusern weg."}
+    treibholz:{cost:costs.treibholz,text:"Du versorgst die Einsatzkräfte. Sie räumen das Treibholz an der Brücke kontrolliert aus dem Abfluss. Das Wasser kann wieder passieren."},
+    rueckhalt:{cost:costs.rueckhalt,text:o==="fachstelle"?"Die Fachstelle kennt die Wiese schon vom Osterbach. Mit wenigen Kernen für die Helfer wird die vorgesehene Rückhaltefläche geöffnet; der Scheitel sinkt.":"Die Gemeinde aktiviert mit Helfern eine dafür vorgesehene Rückhaltefläche abseits der Häuser. Der Scheitel sinkt."},
+    hausschutz:{cost:costs.hausschutz,text:o==="gemeinschaft"?"Die Nachbarschaft vom Osterbach ist schon da, bevor du fragst. Gemeinsam mit den Einsatzkräften sichern sie die Eingänge und leiten das Wasser von den Häusern weg.":"Die Einsatzkräfte sichern die gefährdeten Eingänge und leiten das Oberflächenwasser von den Häusern weg."}
   };
   const route=routes[method];if(!route||!canAfford(route.cost))return;
   for(const [key,cost] of Object.entries(route.cost))spend(key,cost);
@@ -415,10 +435,13 @@ function resolveRatPeacefully(){
   say("Du legst 35 Äpfel abseits des Wegs aus. Der Bachrattenkönig zieht mit seinem Hofstaat um und lässt Krone und Rindenzeichen zurück.","good");
   say("Unter der Brücke liegen 6 angenagte Apfelkerne. Die Ratten haben nur das Fruchtfleisch mitgenommen; Pflanzen war nie ihr Fach.","good");render();saveGame();
 }
+// Wer beim Hochwasser die Gemeinde gerufen hat, trifft an der Wirtsalm auf Einsatzkräfte, die mit anpacken.
+function golemCost(){return g.water.flood.warning==="gemeinde"?40:45}
 function resolveGolemPeacefully(){
-  if(g.location!=="wirtsalm"||g.combat||g.flags.wirtsalmWon||!g.flags.treglerReward||!spend("apples",45))return;
+  const cost=golemCost();
+  if(g.location!=="wirtsalm"||g.combat||g.flags.wirtsalmWon||!g.flags.treglerReward||!spend("apples",cost))return;
   g.flags.wirtsalmWon=true;g.flags.golemRoute="brotzeit";g.cider+=3;g.bark+=3;addItem("kurkarte");
-  say("Mit der Tregler Brotzeit und 45 Äpfeln lockst du den Schmalznudel-Golem an einen freien Tisch. Er schläft ein und lässt Most, Rinde und Kurkarte zurück.","good");render();saveGame();
+  say(`Mit der Tregler Brotzeit und ${cost} Äpfeln lockst du den Schmalznudel-Golem an einen freien Tisch.${cost===40?" Zwei Einsatzkräfte vom Jenbach sitzen schon dort und rücken wortlos auf.":""} Er schläft ein und lässt Most, Rinde und Kurkarte zurück.`,"good");render();saveGame();
 }
 function strike(){
   if(!g.combat || Date.now()<(g.combat.nextStrike||0))return;
@@ -438,10 +461,12 @@ function strike(){
   render();
 }
 
+// Nach dem Hochwasser liegt an der Mauer gespaltenes Treibholz; dann geht es auch ohne Messer.
+function canCarveMarker(){return has("rustySword")||g.water.flood.solution==="treibholz"}
 function carveMarker(){
-  if(g.location!=="wall" || !has("rustySword") || g.flags.wallMarker)return;
+  if(g.location!=="wall" || !canCarveMarker() || g.flags.wallMarker)return;
   g.flags.wallMarker=true; g.seeds+=10;
-  say("Mit dem Obstmesser schnitzt du einen Wegweiser in ein Stück Fallholz. Darunter liegen 10 Apfelkerne.","good");
+  say(has("rustySword")?"Mit dem Obstmesser schnitzt du einen Wegweiser in ein Stück Fallholz. Darunter liegen 10 Apfelkerne.":"Das Treibholz von der Jenbachbrücke ist bis hierher geschwemmt worden, schon gespalten. Du steckst ein Stück als Wegweiser auf. Darunter liegen 10 Apfelkerne.","good");
   if(!has("chalk"))say("Ein eingeritzter Pfeil zeigt zur Krähe am Rathausplatz. Vielleicht hat sie etwas zum Zeichnen.","secret");
   render();
 }
@@ -465,10 +490,16 @@ function crowFeed(){
   if(g.apples<5)return; g.apples-=5; g.flags.crowFeed++;
   if(g.flags.crowFeed===1) say("Die Krähe frisst die Äpfel. Sie bedankt sich nicht. Krähen haben Standards.");
   if(g.flags.crowFeed===5){g.bark+=1;say("Die Krähe lässt ein Rindenzeichen fallen. Sie erwartet offenbar eine Fortsetzung dieser Geschäftsbeziehung.","secret");g.stats.secrets++}
-  if(g.flags.crowFeed===10 && !has("chalk")){addItem("chalk");say("Die Krähe lässt ein Stück Kreide fallen. Du fragst nicht, warum eine Krähe Kreide besitzt.","secret");g.stats.secrets++}
+  if(g.flags.crowFeed===10 && !has("chalk")){addItem("chalk");say("Die Krähe lässt ein Stück Kreide fallen. Du fragst nicht, warum eine Krähe Kreide besitzt.","secret");g.stats.secrets++;grantCrowPost()}
   render();
 }
 
+// Die Krähenpost ist der einzige kostenlose Ausbau: Lohn fürs Füttern.
+function grantCrowPost(){
+  if(g.upgrades.crowPost)return;
+  g.upgrades.crowPost=true;
+  say("Die Krähe kommt jetzt regelmäßig mit Äpfeln vorbei. Auf der Streuobstwiese steht das als „Krähenpost“ im Ausbau.","good");
+}
 function filzeExplore(){
   if(g.flags.filzeSecret){say("Der Moorfrosch ist verschwunden. Vermutlich hat er bessere Quests gefunden.");return;}
   if(g.apples<40){say("Ein Moorfrosch sieht dich an. Du hast zu wenig Äpfel, um seriös zu wirken.");return;}
@@ -534,7 +565,7 @@ function whisper(text){
     g.flags.whisperUnlocked=true; g.bark+=1; g.stats.secrets++;
     say("Die Kiste schätzt die Höflichkeit. Ein Rindenzeichen erscheint.","secret");
   } else if(s.includes("fulinpah") || s.includes("fulinpach")) {
-    say("Ein träger Bach antwortet: »Ich war schon hier, bevor du Äpfel gezählt hast.«","secret");
+    say(g.lore.choices.name===1?"Ein träger Bach antwortet mit deiner eigenen Stimme von damals am Sockel: »Du hast mich schon einmal ausgesprochen. Beim zweiten Mal höre ich zu.«":g.lore.choices.name===2?"Ein träger Bach antwortet: »Deine Linie im Wegbuch biegt dort ab, wo ich abbiege. Jemand hat mich abgezeichnet, ohne mich zu fragen.«":"Ein träger Bach antwortet: »Ich war schon hier, bevor du Äpfel gezählt hast.«","secret");
   } else if(s.includes("faul")) {
     say("„Fulinpah” heißt wörtlich fauler Bach, auf Englisch: lazy creek. Ein Spiel, in dem man wartet, bis Äpfel wachsen, spielt ausgerechnet dort. Die Kiste findet das auch bemerkenswert.","secret");
   } else if(s.includes("kurbeitrag") || s.includes("steuer")) {
@@ -545,7 +576,9 @@ function whisper(text){
   } else if(s.includes("wendelstein")) {
     say(g.flags.ending?"Die Kiste antwortet: »Bring dem Berg eine Geschichte mit.«":"Die Kiste antwortet: »Zu groß. Später.«");
   } else {
-    say("Die Kiste schweigt. Vielleicht ignoriert sie dich professionell.");
+    g.flags.whisperMisses=(g.flags.whisperMisses||0)+1;
+    const n=g.flags.whisperMisses;
+    say(n===3?"Die Kiste bittet um ein Wort mit Inhalt. Sie hat Zeit, aber keine unbegrenzte.":n===6?"Die Kiste hat jetzt einen Anrufbeantworter. Er piept nicht einmal.":n>=10&&n%5===0?"Die Kiste führt inzwischen Strichliste. Du führst sie an.":"Die Kiste schweigt. Vielleicht ignoriert sie dich professionell.");
   }
   render();
 }
@@ -563,16 +596,19 @@ function finishSlice(){
   }
 }
 
+// Marktpreise hängen davon ab, wen du unterwegs gewonnen hast: die Hüttenwirtin (Brotzeit) handelt mit, die Ratten (gelockt) sortieren mit.
+function ledgerCost(){return STORY_COSTS.ledger-(g.flags.golemRoute==="brotzeit"?50:0)}
+function sortCost(){return g.chronicle.solved.includes("apfel1992")?15:g.flags.ratRoute==="locken"?20:35}
 function collectLedger(){
-  if(g.flags.marketLedger || !spend("apples",120))return;
+  if(g.flags.marketLedger || !spend("apples",ledgerCost()))return;
   g.flags.marketLedger=true;addItem("ledger");g.stats.secrets++;
-  say("Die Marktchronik nennt 1992 als Beginn des Apfelmarkts. Auf einer älteren, lose eingelegten Seite steht: Fulinpah, 980.","secret");render();
+  say(`Die Marktchronik nennt 1992 als Beginn des Apfelmarkts. Auf einer älteren, lose eingelegten Seite steht: Fulinpah, 980.${g.flags.golemRoute==="brotzeit"?" Die Hüttenwirtin von der Wirtsalm steht am Nachbarstand und hat den Preis bereits heruntergehandelt.":""}`,"secret");render();
 }
 function borrowLedger(){
-  const cost=g.chronicle.solved.includes("apfel1992")?15:35;
+  const cost=sortCost();
   if(g.flags.marketLedger||!spend("seeds",cost))return;
   g.flags.marketLedger=true;addItem("ledger");g.stats.secrets++;
-  say(`Du hilfst der Händlerin beim Sortieren von ${cost} Apfelkernen. Dafür darfst du die Chronik abschreiben: Fulinpah, 980.`,"secret");render();
+  say(`Du hilfst der Händlerin beim Sortieren von ${cost} Apfelkernen.${g.flags.ratRoute==="locken"?" Die Ratten vom Jenbach sortieren mit; sie sind schnell und bestechlich.":""} Dafür darfst du die Chronik abschreiben: Fulinpah, 980.`,"secret");render();
 }
 function learnVariety(){
   if(g.flags.orchardSong || !g.flags.marketLedger || !spend("seeds",20))return;
@@ -585,9 +621,9 @@ function learnVarietyFromTree(){
   say("Du vergleichst deine Ernte der alten Sorte mit der Chronik. Der vergessene Baum bekommt seinen Namen zurück.","secret");render();
 }
 function keepVow(){
-  if(g.flags.vowKept || !spend("apples",50))return;
+  if(g.flags.vowKept || !spend("apples",STORY_COSTS.vow))return;
   g.flags.vowKept=true;addItem("vow");g.hp=g.maxHp;
-  say("Du gibst 50 Äpfel für die nächste Ernte weiter. Ein eingehaltenes Versprechen öffnet keinen Laden, aber einen Weg.","good");render();
+  say(`Du gibst ${STORY_COSTS.vow} Äpfel für die nächste Ernte weiter. Ein eingehaltenes Versprechen öffnet keinen Laden, aber einen Weg.`,"good");render();
 }
 function keepSeedVow(){
   if(g.flags.vowKept||!spend("seeds",20))return;
@@ -605,34 +641,44 @@ function readSpring(){
   g.flags.springHeard=true;addItem("spring");g.stats.secrets++;
   say("Du vergleichst Wasserfall, Chronik und Sortennamen. Zwischen zwei Zeilen steht, wie man den langsamen Bach findet.","secret");render();
 }
+// Das Moor erinnert sich an die Wegbuch-Entscheidung: Holz liegen lassen (1) oder davon erzählen (2).
+function lanternCost(){return g.lore.choices.moor===2?10:20}
 function catchLight(){
   if(g.flags.moorLight || !g.flags.springHeard)return;
   g.flags.moorLight=true;addItem("lantern");g.stats.secrets++;
-  say("Ein Irrlicht folgt dir auf dem Bohlenweg. Du bleibst auf dem Weg; es hüpft freiwillig in dein Glas.","secret");render();
+  say("Ein Irrlicht folgt dir auf dem Bohlenweg. Du bleibst auf dem Weg; es hüpft freiwillig in dein Glas.","secret");
+  if(g.lore.choices.moor===1){g.bark++;say("Es setzt sich genau auf das Holz, das du damals liegen gelassen hast. Darunter liegt ein Rindenzeichen. Das Moor vergisst nichts, es ist nur nicht nachtragend.","secret")}
+  render();
 }
 function craftMoorLight(){
-  if(g.flags.moorLight||!g.flags.springHeard||!spend("seeds",20))return;
+  const cost=lanternCost();
+  if(g.flags.moorLight||!g.flags.springHeard||!spend("seeds",cost))return;
   g.flags.moorLight=true;addItem("lantern");g.stats.secrets++;
-  say("Du gibst 20 Kerne für eine Laterne aus. Das Irrlicht folgt ihrem Schein freiwillig auf dem Bohlenweg.","secret");render();
+  say(cost===10?"Jemand hat nach deiner Geschichte vom Bohlenweg eine Laterne am Steg aufgehängt. 10 Kerne für das Öl, und das Irrlicht folgt ihrem Schein.":"Du gibst 20 Kerne für eine Laterne aus. Das Irrlicht folgt ihrem Schein freiwillig auf dem Bohlenweg.","secret");render();
 }
 function takeStick(){
   if(has("hikingStick"))return;
   addItem("hikingStick");say("Ein Wanderstock steckt zwischen den Felsen. Der Vorbesitzer hat nur eine Rechnung hinterlassen.");render();
 }
+// Wer an der Mauer den Pfad genommen hat, findet am Farrenpoint das Zeichen des Ortskundigen: Holz liegt bereit.
+function stickCost(){return g.flags.wallRoute==="path"?0:10}
 function craftStick(){
-  if(has("hikingStick")||!has("rustySword")||!spend("seeds",10))return;
-  addItem("hikingStick");say("Mit dem Obstmesser schnitzt du aus Fallholz einen Wanderstock. 10 Kerne gehen für das Material drauf.","good");render();
+  if(has("hikingStick")||!has("rustySword")||!spend("seeds",stickCost()))return;
+  addItem("hikingStick");say(stickCost()?"Mit dem Obstmesser schnitzt du aus Fallholz einen Wanderstock. 10 Kerne gehen für das Material drauf.":"Neben einem Steinmann liegt zugeschnittenes Holz mit dem Zeichen des Ortskundigen aus dem Jenbachtal. Du schnitzt den Stock fertig; Material kostet hier nichts.","good");render();
 }
+// Ein ins Wegbuch eingetragenes Gelübde (Wahl 2) können die Männlein nachlesen; das senkt den Preis.
+function mannlCost(){return STORY_COSTS.mannl-(g.lore.choices.promise===2?50:0)}
 function meetMannl(){
   if(g.flags.mannlGift)return;
   if(!g.flags.springHeard || !g.flags.moorLight || !g.flags.vowKept){say("Die Männlein hören sich deine Geschichte an. Sie ist noch nicht ganz erzählt.");return;}
   g.flags.mannlGift=true;addItem("mannlgift");g.hp=g.maxHp;
-  say("Die Wendelstein-Männlein schenken dir einen Rindenring. Sie helfen in Sagen lieber als auf Rechnungen.","secret");render();
+  say(g.lore.choices.promise===1?"Die Wendelstein-Männlein schenken dir einen Rindenring. Eines sagt, es habe dein leises Versprechen in Au gehört; die Männlein hören leise Dinge am besten.":"Die Wendelstein-Männlein schenken dir einen Rindenring. Sie helfen in Sagen lieber als auf Rechnungen.","secret");render();
 }
 function tradeMannl(){
-  if(g.flags.mannlGift||!g.flags.springHeard||!g.flags.vowKept||!spend("apples",90))return;
+  const cost=mannlCost();
+  if(g.flags.mannlGift||!g.flags.springHeard||!g.flags.vowKept||!spend("apples",cost))return;
   g.flags.mannlGift=true;addItem("mannlgift");g.hp=g.maxHp;
-  say("Du teilst 90 Äpfel mit den Wendelstein-Männlein. Das Moorlicht fehlt in deiner Geschichte, aber dein Gelübde überzeugt sie.","secret");render();
+  say(`Du teilst ${cost} Äpfel mit den Wendelstein-Männlein.${cost<STORY_COSTS.mannl?" Eines liest dein Gelübde im Wegbuch nach und streicht einen Teil des Preises; geschriebene Versprechen gelten hier als Anzahlung.":""} Das Moorlicht fehlt in deiner Geschichte, aber dein Gelübde überzeugt sie.`,"secret");render();
 }
 function enterFinal(){
   if(!g.flags.mannlGift || !g.flags.boxOpened || !g.flags.ending)return;
@@ -644,9 +690,9 @@ function enterFinal(){
   }
 }
 function bargainPicker(){
-  if(!g.flags.ending||!g.flags.boxOpened||!g.flags.mannlGift||loreCount(2)<3||chronicleCount(2)<2||g.flags.finalWon||g.combat||!canAfford({apples:120,bark:8}))return;
-  spend("apples",120);spend("bark",8);g.flags.finalWon=true;
-  say("Du legst 120 Äpfel und acht Rindenzeichen auf den Boden der Kiste. Der letzte Pflücker erinnert sich, warum die Ernte geteilt werden sollte. Er tritt beiseite.","secret");render();saveGame();
+  if(!g.flags.ending||!g.flags.boxOpened||!g.flags.mannlGift||loreCount(2)<3||chronicleCount(2)<2||g.flags.finalWon||g.combat||!canAfford({apples:STORY_COSTS.picker,bark:8}))return;
+  spend("apples",STORY_COSTS.picker);spend("bark",8);g.flags.finalWon=true;
+  say(`Du legst ${STORY_COSTS.picker} Äpfel und acht Rindenzeichen auf den Boden der Kiste. Der letzte Pflücker erinnert sich, warum die Ernte geteilt werden sollte. Er tritt beiseite.`,"secret");render();saveGame();
 }
 function decideFate(choice){
   if(!g.flags.finalWon || g.flags.finalChoice || !["share","rest"].includes(choice))return;
@@ -654,7 +700,7 @@ function decideFate(choice){
   const seed=g.lore.choices.harvest===2?"den weitergereichten Apfel":"den aufgehobenen Kern";
   say(`Der Pflücker schaut auf ${seed} in deinem Wegbuch. Er hatte Äpfel gesammelt, damit kein alter Name verloren geht. Dabei vergaß er, dass ein Baum erst weiterlebt, wenn etwas von ihm fortgetragen wird.`,"secret");
   if(choice==="share"){
-    say("Du öffnest die Kiste. Nicht auf einmal: Erst tragen die Nachbarn die Äpfel zur Wiese, dann legen Kinder Kerne neben die Spielrinnen, und zuletzt findet der namenlose Baum bei Wiechs seinen Platz in der Chronik.","good");
+    say(g.lore.choices.mountain===2?"Du öffnest die Kiste. Nicht auf einmal: Erst findet der namenlose Baum bei Wiechs seinen Platz in der Chronik, wie du es am Berg erzählt hast. Dann legen Kinder Kerne neben die Spielrinnen, und zuletzt tragen die Nachbarn die Äpfel zur Wiese.":"Du öffnest die Kiste. Nicht auf einmal: Erst tragen die Nachbarn vom Jenbach die Äpfel zur Wiese, wie du es am Berg erzählt hast. Dann legen Kinder Kerne neben die Spielrinnen, und zuletzt findet der namenlose Baum bei Wiechs seinen Platz in der Chronik.","good");
     say("Am Jenbach lesen die Menschen die Pegelmarke wieder gemeinsam. In Au liegt ein neuer Zweig vor der Kapelle. Fulinpach fließt langsam weiter. Niemand ist reich; alle haben etwas zu essen. ENDE: DIE GETEILTE ERNTE.","good");
   }else{
     say("Du schließt die Kiste und lässt den Bach unter den Wurzeln weiterziehen. Seine Quelle bleibt, wo sie ist. Auf den Wiesen wachsen Bäume ohne Schild, und niemand muss ihren Namen besitzen, um darunter Rast zu machen.","secret");
@@ -767,6 +813,22 @@ function journalEntries(){
       choice?`Dein Weg: ${choice.label}.`:null,scene.place);
   }
   return entries;
+}
+// Der Händler kommentiert den Stand der Dinge (Issue #8). Die erste passende Zeile gewinnt.
+function merchantLine(){
+  const f=g.flags;
+  if(has("appleADay"))return "»Unbesiegbar, ja. Aber zahlen müssen Sie trotzdem.«";
+  if(has("goldenApple"))return f.finalChoice==="share"?"»Den Goldenen Apfel kaufe ich nicht an. Geteilte Ernte, sagen die Leute. Mein Geschäftsmodell ist beleidigt.«":"»Der Bach bleibt, höre ich. Dann bleibt auch mein Stand. Wir haben uns beide nicht gefragt.«";
+  if(f.ending)return "»Unter Ihrer Kiste ist eine Treppe? Ich habe nichts gesehen. Ich sehe grundsätzlich nichts, was ich nicht verkaufen kann.«";
+  if(f.doNotBuy)return "»Das war das Ding mit NICHT KAUFEN. Ich sage nichts. Ich notiere nur.«";
+  if(has("kurkarte"))return "»Eine Kurkarte aus einem Paralleluniversum? Hier gilt sie nicht. Hier gilt überhaupt wenig.«";
+  if(f.wirtsalmVisited)return "»Sie waren auf der Wirtsalm? Dann wissen Sie ja, was ich meine, wenn ich ›regional‹ sage.«";
+  if(f.ratRoute==="locken")return "»Die Ratten vom Jenbach kaufen jetzt bei mir. Mit Ihren Äpfeln. Ich stelle keine Fragen, ich stelle Rechnungen.«";
+  if(f.ratRoute==="kampf")return "»Sie haben den Rattenkönig erledigt? Dann hat sich die Kronenpflege auf Seite zwei erübrigt.«";
+  if(g.insuranceBonus>=50)return "»Zweimal versichert. Sie planen etwas. Das verstehe ich, ich verstehe nur nicht, wogegen.«";
+  if(f.mapBought)return "»Die Karte stimmt, bis auf die Monster. Die Monster stimmen auch, nur die Karte nicht.«";
+  if(has("spoon"))return "»Der Holzlöffel? Küchenutensil. Alles andere wäre eine Waffe, und Waffen führe ich nicht. Offiziell.«";
+  return "»Alles regional. Alles nachhaltig.« Er sagt das, bevor du überhaupt gefragt hast.";
 }
 // Der Eintrag, den der Schauplatz als „Nächster Schritt“ oder „Entschieden“ zeigt:
 // erst der älteste offene Eintrag am Ort, sonst der zuletzt dazugekommene erledigte.
@@ -910,16 +972,32 @@ function normalizeSave(data){
   if((rf.treglerVisited||rf.wirtsalmVisited||rf.farrenpointVisited||rf.mountainVisited)&&!result.inventory.includes("hikingBoots"))result.inventory.push("hikingBoots");
   if(rf.finalChoice&&!result.inventory.includes("goldenApple"))result.inventory.push("goldenApple");
   if(result.maxHp>=APPLE_A_DAY_HP&&!result.inventory.includes("appleADay"))result.inventory.push("appleADay");
+  // Ab Version 13: Ausbauten der Streuobstwiese. Nur bekannte Ausbauten übernehmen; die Krähenpost gibt es mit der Kreide.
+  result.upgrades={};
+  for(const u of UPGRADES)if(data.upgrades?.[u.id]===true)result.upgrades[u.id]=true;
+  if(result.inventory.includes("chalk"))result.upgrades.crowPost=true;
   g=result;recomputeStats();return result;
 }
 
 // Rechnet die seit dem letzten Takt vergangene Zeit als Ernte an. Gilt auch für Zeit
 // im Hintergrund oder bei geschlossener Datei, höchstens MAX_OFFLINE_SECONDS am Stück.
-// Tatsächliche Apfelrate: Grundrate plus Bonus des Goldenen Apfels (Issue #6).
-function appleRateNow(){return g.appleRate+(has("goldenApple")?1:0)}
+// Tatsächliche Raten: Grundrate plus gekaufte Ausbauten (Issue #7) plus Bonus des Goldenen Apfels (Issue #6).
+function upgradeBonus(kind){return UPGRADES.reduce((sum,u)=>sum+(g.upgrades[u.id]?u[kind]||0:0),0)}
+function appleRateNow(){return g.appleRate+upgradeBonus("apples")+(has("goldenApple")?1:0)}
+function seedRateNow(){return g.seedRate+upgradeBonus("seeds")}
+function upgradeState(u){return g.upgrades[u.id]?"bought":u.unlock()?"available":"locked"}
+function buyUpgrade(id){
+  const u=UPGRADES.find(x=>x.id===id);
+  if(!u||g.upgrades[id]||!u.unlock()||!canAfford(u.cost))return;
+  for(const [k,v] of Object.entries(u.cost))spend(k,v);
+  g.upgrades[id]=true;
+  say(`Ausbau: ${u.name}. ${u.desc}`,"good");
+  say(`Die Wiese liefert jetzt ${appleRateNow().toFixed(1)} Äpfel und ${seedRateNow().toFixed(1)} Kerne pro Sekunde.`,"good");
+  render();saveGame();
+}
 function creditElapsedTime(now,minSecondsForMessage){
   const elapsed=Math.min(MAX_OFFLINE_SECONDS,Math.max(0,(now-(g.lastTick||now))/1000)),rate=appleRateNow();
-  g.apples+=elapsed*rate; g.seeds+=elapsed*g.seedRate; g.lastTick=now;
+  g.apples+=elapsed*rate; g.seeds+=elapsed*seedRateNow(); g.lastTick=now;
   if(elapsed>=minSecondsForMessage)say(`Während du weg warst, produzierte die Kiste ${fmt(elapsed*rate)} Äpfel. Überstunden wurden nicht genehmigt.`);
 }
 

@@ -67,6 +67,7 @@ details.history summary{cursor:pointer;font-weight:bold}
 .item-art{width:13ch;height:8.6em;font-size:12px}
 .enemy-art,.battle-avatar{width:15ch;height:9em;font-size:16px}
 .enemy-art.hit{animation:enemyHit .35s ease-out}
+.enemy-art.windup{animation:enemyWindup .4s ease-in-out infinite alternate;border-color:#b23a2a}
 .battle-avatar.hurt{animation:heroHurt .35s ease-out}
 
 /* Streuobstwiese */
@@ -167,6 +168,7 @@ details.history summary{cursor:pointer;font-weight:bold}
 @keyframes appleGlow{50%{transform:scale(1.12);filter:brightness(1.15)}}
 @keyframes enemyHit{25%{transform:translateX(8px);filter:brightness(1.5)}55%{transform:translateX(-5px)}}
 @keyframes heroHurt{25%{transform:translateX(-8px);filter:sepia(1)}55%{transform:translateX(5px)}}
+@keyframes enemyWindup{from{transform:scale(1) translateY(0)}to{transform:scale(1.06) translateY(-4px);background:#fbe3dc}}
 @keyframes boxOpen{from{opacity:.45;transform:perspective(600px) rotateX(-12deg) scale(.96)}to{opacity:1;transform:perspective(600px) rotateX(0) scale(1)}}
 @keyframes endingReveal{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:blur(0)}}
 

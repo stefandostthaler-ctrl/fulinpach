@@ -333,7 +333,16 @@ const ITEM_ART = {
 |BAHN   |
 | No 07 |
 |_ _ _ _|
-+-------+`
++-------+`,
+  goldenApple:String.raw`    ,
+   /|
+ .-$$$-.
+( $ ST $ )
+ '-$$$-'`,
+  appleADay:String.raw`  (o)(o)(o)
+  (o)980(o)
+  (o)(o)(o)
+   a day...`
 };
 
 // Symbole in der Ressourcenzeile oben.

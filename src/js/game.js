@@ -8,7 +8,7 @@
 
 const SAVE_KEY = "fulinpach_bad_feilnbach_v3";
 const OLD_SAVE_KEY = "candy_box_3_bad_feilnbach_de_v2";
-const VERSION = 11;
+const VERSION = 12;
 const MAX_OFFLINE_SECONDS = 8*3600; // Längste Abwesenheit, die als Ernte angerechnet wird
 
 const fresh = () => ({
@@ -122,6 +122,7 @@ function eatApples(){
   g.hp = Math.min(g.maxHp, g.hp + Math.ceil(amt/2));
   say(`Du isst ${amt} Äpfel. Ein Obstbauer nickt anerkennend. Nach dem zwanzigsten Apfel nicht mehr.`);
   if(g.maxHp>old) say("Deine maximalen LP steigen. Obst ist jetzt offenbar Medizin.","good");
+  checkAppleADay();
   render();
 }
 
@@ -226,13 +227,31 @@ function recomputeStats(){
 
 function startCombat(id){
   const e=enemies[id];
-  g.combat={id,enemyHp:e.maxHp,nextEnemy:Date.now()+e.interval,nextPlayer:Date.now()+850,nextStrike:0,lastHit:0,lastHurt:0};
+  g.combat={id,enemyHp:e.maxHp,nextEnemy:Date.now()+e.interval,nextPlayer:Date.now()+850,nextStrike:0,lastHit:0,lastHurt:0,attacks:0,windupUntil:0};
   say(`${e.name} versperrt dir den Weg. Deine ausgerüstete Waffe: ${g.equipped.weapon?itemDb[g.equipped.weapon].name:"keine"}.`,"bad");
   if(!g.equipped.weapon)say("Ohne Waffe dauert das lange. Fliehen geht jederzeit, und meistens gibt es auch einen friedlichen Weg.","bad");
 }
 
+// Berge und Almen (Issue #2): nur mit den Jenbachtaler Wanderstiefeln aus dem Händlerangebot.
+const MOUNTAIN_PLACES=["tregler","wirtsalm","farrenpoint","wendelstein"];
+const BOOTS_HINT="Der Weg in die Berge braucht die Jenbachtaler Wanderstiefel. Der Händler hat welche; der Berg hat Geduld.";
+// Liefert false, wenn der Ort betreten werden darf, sonst einen kurzen Grund.
+function placeLocked(place){
+  const f=g.flags;
+  if(place==="biberdamm"&&g.water.oster.stage==="new")return "Am Wasserspielplatz gibt es noch keine Spur zur Biberburg.";
+  if(place==="siedlung"&&(!f.jenbachWon||g.water.oster.stage!=="solved"||g.water.flood.stage==="new"))return "An den Wohnhäusern gibt es noch nichts zu tun.";
+  if(["wall","tregler"].includes(place)&&!f.jenbachWon)return "Der Bachrattenkönig versperrt noch den Weg ins Jenbachtal.";
+  if(place==="wirtsalm"&&!f.wallPassed)return "Der Weg Richtung Wirtsalm endet vor der Mauer.";
+  if(place==="farrenpoint"&&!f.springHeard)return "Der Farrenpoint wartet, bis du die Quelle gehört hast.";
+  if(place==="wendelstein"&&!has("hikingStick"))return "Ohne Wanderstock vom Farrenpoint ist der Wendelstein zu weit.";
+  if(place==="fulinpach"&&(!f.mannlGift||!f.boxOpened))return "Der Weg nach Fulinpach ist noch nicht offen.";
+  if(MOUNTAIN_PLACES.includes(place)&&!has("hikingBoots"))return BOOTS_HINT;
+  return false;
+}
+
 function travel(place){
-  if(place==="biberdamm"&&g.water.oster.stage==="new" || place==="siedlung"&&(!g.flags.jenbachWon||g.water.oster.stage!=="solved"||g.water.flood.stage==="new"))return;
+  const reason=placeLocked(place);
+  if(reason){say(reason,"bad");render();return;}
   g.currentTab="quests"; g.unlocks.quests=true; g.location=place; g.combat=null;
   if(!g.chronicle.visited.includes(place)){
     g.chronicle.visited.push(place);
@@ -256,7 +275,13 @@ function travel(place){
   }
   if(place==="jenbach"){
     g.flags.jenbachVisited=true;
-    say(!g.flags.jenbachWon?"Der Bachrattenkönig sitzt an der Brücke. Du kannst ihn vertreiben oder mit Äpfeln vom Weg locken.":g.water.oster.stage==="solved"&&g.water.flood.stage!=="solved"?"Die Ratten sind fort, doch nach starkem Regen schwillt der Jenbach an.":"Das Jenbachparadies ist wieder ruhig. Die Ratten haben offenbar auf demokratische Strukturen umgestellt.");
+    const fl=g.water.flood.stage,floodStarted=g.water.oster.stage==="solved"&&g.flags.jenbachWon;
+    say(!g.flags.jenbachWon?"Der Bachrattenkönig sitzt an der Brücke. Du kannst ihn vertreiben oder mit Äpfeln vom Weg locken.":
+      !floodStarted?"Das Jenbachparadies ist wieder ruhig. Die Ratten haben offenbar auf demokratische Strukturen umgestellt.":
+      fl==="new"?"Die Ratten sind fort, doch nach starkem Regen schwillt der Jenbach an.":
+      fl==="observed"?"Der Pegel steigt weiter. Unterhalb der Brücke stehen Wohnhäuser; zuerst müssen die Menschen dort Bescheid wissen.":
+      fl==="warned"?"Die Häuser sind gewarnt. An der Brücke staut sich Treibholz; jetzt zählt der Abfluss.":
+      "Die Pegelmarke an der Brücke ist wieder trocken. Die Wohnhäuser blieben verschont, und der Jenbach tut so, als wäre nichts gewesen.");
   }
   if(place==="wall"){
     g.flags.wallSeen=true;
@@ -362,7 +387,17 @@ function combatTick(now){
     }
   }
   if(g.combat && now>=g.combat.nextEnemy){
-    const dmg=Math.max(1,e.damage-g.defense); g.hp-=dmg; g.combat.nextEnemy=now+e.interval;g.combat.lastHurt=now;
+    const sp=e.special;
+    // Schwerer Angriff (Issue #5): erst ausholen, dann doppelt treffen. Ein gezielter Angriff während des Ausholens unterbricht ihn.
+    if(sp && !g.combat.windupUntil && (g.combat.attacks+1)%sp.every===0){
+      g.combat.windupUntil=now+sp.windup; g.combat.nextEnemy=now+sp.windup;
+      say(`${e.name} holt aus: ${sp.name}! Ein gezielter Angriff würde das jetzt unterbrechen.`,"bad");
+      return;
+    }
+    const heavy=Boolean(g.combat.windupUntil); g.combat.windupUntil=0; g.combat.attacks++;
+    // Mit „An apple a day…“ (Issue #4) trifft der Gegner, aber es passiert nichts.
+    const dmg=has("appleADay")?0:Math.max(1,e.damage*(heavy?sp.factor:1)-g.defense); g.hp-=dmg; g.combat.nextEnemy=now+e.interval;g.combat.lastHurt=now;
+    if(heavy)say(`${sp.name} trifft: ${dmg} Schaden. Das war die angekündigte Version.`,"bad");
     if(g.hp<=0){
       g.stats.deaths++; g.hp=g.maxHp;
       say(`Du wurdest von ${e.name} besiegt. Du wachst am Rathausplatz auf. Neben dir liegt ein Formular, das du nicht bestellt hast.`,"bad");
@@ -376,8 +411,9 @@ function finishCombat(enemy){
 }
 function resolveRatPeacefully(){
   if(g.location!=="jenbach"||g.combat||g.flags.jenbachWon||!spend("apples",35))return;
-  g.flags.jenbachWon=true;g.flags.ratRoute="locken";g.bark+=2;addItem("ratCrown");
-  say("Du legst 35 Äpfel abseits des Wegs aus. Der Bachrattenkönig zieht mit seinem Hofstaat um und lässt Krone und Rindenzeichen zurück.","good");render();saveGame();
+  g.flags.jenbachWon=true;g.flags.ratRoute="locken";g.bark+=2;g.seeds+=6;addItem("ratCrown");
+  say("Du legst 35 Äpfel abseits des Wegs aus. Der Bachrattenkönig zieht mit seinem Hofstaat um und lässt Krone und Rindenzeichen zurück.","good");
+  say("Unter der Brücke liegen 6 angenagte Apfelkerne. Die Ratten haben nur das Fruchtfleisch mitgenommen; Pflanzen war nie ihr Fach.","good");render();saveGame();
 }
 function resolveGolemPeacefully(){
   if(g.location!=="wirtsalm"||g.combat||g.flags.wirtsalmWon||!g.flags.treglerReward||!spend("apples",45))return;
@@ -386,12 +422,18 @@ function resolveGolemPeacefully(){
 }
 function strike(){
   if(!g.combat || Date.now()<(g.combat.nextStrike||0))return;
-  const e=enemies[g.combat.id], weapon=g.equipped.weapon;
-  const impact=g.damage+(weapon==="rustySword"?12:4);
+  const e=enemies[g.combat.id], weapon=g.equipped.weapon, now=Date.now();
+  let impact=g.damage+(weapon==="rustySword"?12:4);
+  const interrupted=Boolean(g.combat.windupUntil);
+  if(interrupted){
+    // Unterbrechung: der schwere Angriff fällt aus, der Gegner taumelt und braucht länger bis zum nächsten Biss.
+    impact+=6; g.combat.windupUntil=0; g.combat.attacks++; g.combat.nextEnemy=now+e.interval+2000;
+  }
   g.combat.enemyHp-=impact;
-  g.combat.lastHit=Date.now();
-  g.combat.nextStrike=Date.now()+3200;
+  g.combat.lastHit=now;
+  g.combat.nextStrike=now+3200;
   say(weapon==="rustySword"?`Du setzt das Obstmesser gezielt ein: ${impact} Schaden.`:`Du greifst gezielt an: ${impact} Schaden.`,"good");
+  if(interrupted)say(`${e.special.name} fällt aus. ${e.name} taumelt und überdenkt kurz seine Laufbahn.`,"good");
   if(g.combat.enemyHp<=0){finishCombat(e);return;}
   render();
 }
@@ -453,6 +495,7 @@ function lightCandle(quiet=false){
   g.flags.candleLit=true; g.maxHp+=10; g.hp=g.maxHp; g.stats.secrets++;
   say(quiet?"Du setzt dich für einen Moment in die Stille. Eine Pause ist manchmal eine Handlung.":"Du zündest eine Kerze an. Eine Pause ist manchmal eine Handlung.","secret");
   say("Deine maximalen LP steigen um 10. Videospiel-Logik bleibt unbesiegt.","good");
+  checkAppleADay();
   render();
 }
 
@@ -466,6 +509,15 @@ function packBrotzeit(){
   if(g.flags.treglerReward)return;
   g.flags.treglerReward=true;g.cider++;
   say("Du teilst die Brotzeit mit der Hüttenwirtin. Sie packt dir stattdessen eine Flasche Most ein und erzählt, was Schmalznudeln beruhigt.","good");render();
+}
+
+// Issue #4: Bei 980 maximalen LP (Jahr der ersten Erwähnung) gibt es den Talisman, der unbesiegbar macht.
+const APPLE_A_DAY_HP=980;
+function checkAppleADay(){
+  if(g.maxHp<APPLE_A_DAY_HP||has("appleADay"))return;
+  addItem("appleADay");g.stats.secrets++;
+  say("980 Lebenspunkte. Im Jahr 980 wurde Fulinpah zum ersten Mal aufgeschrieben; du bist jetzt ungefähr so haltbar wie diese Urkunde.","secret");
+  say("Solange der Talisman „An apple a day…“ in deiner Tasche liegt, richtet kein Gegner mehr Schaden an. Ärzte meiden dich vorsorglich.","good");
 }
 
 function drinkCider(){
@@ -608,6 +660,11 @@ function decideFate(choice){
     say("Du schließt die Kiste und lässt den Bach unter den Wurzeln weiterziehen. Seine Quelle bleibt, wo sie ist. Auf den Wiesen wachsen Bäume ohne Schild, und niemand muss ihren Namen besitzen, um darunter Rast zu machen.","secret");
     say("Der Händler versucht vergeblich, das Schweigen zu verkaufen. Du lässt dein Wegbuch am Rathausplatz liegen, damit der nächste Mensch selbst entscheiden kann, was er mitnimmt. ENDE: DER BACH BLEIBT.","secret");
   }
+  // Issue #3 und #6: Belohnung für den Abschluss, bei beiden Enden mit eigener Begründung.
+  addItem("goldenApple");
+  say(choice==="share"?"Die Gemeinde überreicht dir den Goldenen Apfel der Stadt: für eine Ernte, die bei allen angekommen ist. Die Urkunde wird nachgereicht, sobald jemand das Wort „Stadt“ erklärt hat.":
+    "Die Gemeinde überreicht dir den Goldenen Apfel der Stadt: für einen Bach, den du in Ruhe gelassen hast. Der Händler fragt, ob der Apfel zu verkaufen ist. Er ist es nicht.","good");
+  say("Seit der Verleihung fällt jede Sekunde ein Apfel mehr in die Kiste. Niemand weiß, woher.","good");
   saveGame();render();
 }
 
@@ -657,7 +714,8 @@ function chooseLore(id,index){
 
 function journalEntries(){
   const f=g.flags,w=g.water.oster,h=g.water.flood,entries=[];
-  const add=(id,title,group,done,step,decision,place,tab)=>entries.push({id,title,group,done,step,decision,place,tab});
+  // at: Orte, an denen der Eintrag als aktueller Schritt gilt (Standard: nur place).
+  const add=(id,title,group,done,step,decision,place,tab,at)=>entries.push({id,title,group,done,step,decision,place,tab,at});
   add("kiste","Die Apfelkiste","Hauptgeschichte",Boolean(g.unlocks.map),
     !f.crateInspected?"Untersuche das lose Brett auf dem Rathausplatz.":!f.wrapperSeen?"Untersuche das Rindenstück in der Apfelkiste.":!g.unlocks.map?"Besorge beim Händler die Wanderkarte.":"Die Wanderkarte führt dich zu weiteren Orten.",
     f.wrapperChoice?`Rindenstück: ${{keep:"behalten",tear:"geteilt",eat:"probiert"}[f.wrapperChoice]||"untersucht"}.`:null,"rathaus",g.unlocks.map?"map":f.wrapperSeen?"shop":"main");
@@ -686,7 +744,7 @@ function journalEntries(){
     f.boxOpened?"Die innere Lasche ist offen.":null,null,"box");
   if(w.stage==="solved"&&f.jenbachWon)add("hochwasser","Steigendes Wasser am Jenbach","Wasser",h.stage==="solved",
     h.stage==="new"?"Prüfe Pegel und Brücke am Jenbach.":h.stage==="observed"?"Warn zuerst die Wohnhäuser: persönlich oder über die Gemeinde.":h.stage==="warned"?"Kehre zur Brücke zurück und wähle den Schutz der Häuser.":"Die Bewohner wurden gewarnt; die Häuser blieben trocken.",
-    h.warning?`Warnung: ${h.warning==="gemeinde"?"über Gemeinde und Einsatzkräfte":"mit den Nachbarn von Tür zu Tür"}.${h.solution?` Schutz: ${{treibholz:"Brücke freigehalten",rueckhalt:"Rückhaltefläche genutzt",hausschutz:"Eingänge gesichert"}[h.solution]}.`:""}`:null,h.stage==="observed"?"siedlung":"jenbach");
+    h.warning?`Warnung: ${h.warning==="gemeinde"?"über Gemeinde und Einsatzkräfte":"mit den Nachbarn von Tür zu Tür"}.${h.solution?` Schutz: ${{treibholz:"Brücke freigehalten",rueckhalt:"Rückhaltefläche genutzt",hausschutz:"Eingänge gesichert"}[h.solution]}.`:""}`:null,h.stage==="observed"?"siedlung":"jenbach",undefined,["jenbach","siedlung"]);
   add("kirche","Eine Pause an der Kirche","Nebenweg",Boolean(f.candleLit),f.candleLit?"Du hast eine Pause gemacht.":"Zünde eine Kerze an oder verweile still an der Herz-Jesu-Kirche.",null,"kirche");
   add("filze","Der Moorfrosch","Nebenweg",Boolean(f.filzeSecret),f.filzeSecret?"Der Talisman wurde gefunden.":"Biete dem Frosch Äpfel an oder suche mit Kernen im Moos.",null,"filze");
   add("bahnhof","Der alte Bahnhof","Nebenweg",Boolean(f.bahnhofFound),f.bahnhofFound?"Die Fahrkarte wurde gefunden.":"Sieh dir den alten Bahnhof an und such zwischen den Schwellen.",null,"bahnhof");
@@ -710,14 +768,20 @@ function journalEntries(){
   }
   return entries;
 }
+// Der Eintrag, den der Schauplatz als „Nächster Schritt“ oder „Entschieden“ zeigt:
+// erst der älteste offene Eintrag am Ort, sonst der zuletzt dazugekommene erledigte.
+function currentQuestEntry(entries=journalEntries()){
+  const atPlace=entries.filter(e=>(e.at||[e.place]).includes(g.location));
+  return atPlace.find(e=>!e.done)||atPlace[atPlace.length-1]||
+    (["osterbach","biberdamm"].includes(g.location)?entries.find(e=>e.id==="oster"):g.location==="siedlung"?entries.find(e=>e.id==="hochwasser"):null);
+}
 function journalGo(entry){
   if(entry.tab){
     if(entry.tab==="farrenpoint"||entry.tab==="wendelstein")return journalGo({place:entry.tab});
     g.currentTab=entry.tab;render();return;
   }
-  const p=entry.place;
-  const locked=p==="biberdamm"&&g.water.oster.stage==="new"||p==="siedlung"&&g.water.flood.stage==="new"||["wall","tregler"].includes(p)&&!g.flags.jenbachWon||p==="wirtsalm"&&!g.flags.wallPassed||p==="farrenpoint"&&!g.flags.springHeard||p==="wendelstein"&&!has("hikingStick")||p==="fulinpach"&&(!g.flags.mannlGift||!g.flags.boxOpened);
-  if(locked){g.currentTab="map";render();return}
+  const p=entry.place,reason=placeLocked(p);
+  if(reason){g.currentTab="map";say(reason,"bad");render();return}
   travel(p);
 }
 
@@ -841,15 +905,22 @@ function normalizeSave(data){
   }
   if(result.flags.ending)result.unlocks.map=true;
   if(result.flags.crateInspected)result.unlocks.farm=true;
+  // Ab Version 12: Wer die Berge schon erreicht hat, behält den Zugang (Wanderstiefel); Belohnungen aus Issue #3 und #4 nachreichen.
+  const rf=result.flags;
+  if((rf.treglerVisited||rf.wirtsalmVisited||rf.farrenpointVisited||rf.mountainVisited)&&!result.inventory.includes("hikingBoots"))result.inventory.push("hikingBoots");
+  if(rf.finalChoice&&!result.inventory.includes("goldenApple"))result.inventory.push("goldenApple");
+  if(result.maxHp>=APPLE_A_DAY_HP&&!result.inventory.includes("appleADay"))result.inventory.push("appleADay");
   g=result;recomputeStats();return result;
 }
 
 // Rechnet die seit dem letzten Takt vergangene Zeit als Ernte an. Gilt auch für Zeit
 // im Hintergrund oder bei geschlossener Datei, höchstens MAX_OFFLINE_SECONDS am Stück.
+// Tatsächliche Apfelrate: Grundrate plus Bonus des Goldenen Apfels (Issue #6).
+function appleRateNow(){return g.appleRate+(has("goldenApple")?1:0)}
 function creditElapsedTime(now,minSecondsForMessage){
-  const elapsed=Math.min(MAX_OFFLINE_SECONDS,Math.max(0,(now-(g.lastTick||now))/1000));
-  g.apples+=elapsed*g.appleRate; g.seeds+=elapsed*g.seedRate; g.lastTick=now;
-  if(elapsed>=minSecondsForMessage)say(`Während du weg warst, produzierte die Kiste ${fmt(elapsed*g.appleRate)} Äpfel. Überstunden wurden nicht genehmigt.`);
+  const elapsed=Math.min(MAX_OFFLINE_SECONDS,Math.max(0,(now-(g.lastTick||now))/1000)),rate=appleRateNow();
+  g.apples+=elapsed*rate; g.seeds+=elapsed*g.seedRate; g.lastTick=now;
+  if(elapsed>=minSecondsForMessage)say(`Während du weg warst, produzierte die Kiste ${fmt(elapsed*rate)} Äpfel. Überstunden wurden nicht genehmigt.`);
 }
 
 function loadGame(){

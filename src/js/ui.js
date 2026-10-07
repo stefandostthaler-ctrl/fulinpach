@@ -14,6 +14,8 @@ function asciiGraphic(className,label,art){
   node.setAttribute("role","img");node.setAttribute("aria-label",label);
   node.textContent=art;return node;
 }
+// Beschreibungen dürfen Funktionen sein, wenn der Text vom Spielstand abhängt.
+function itemDesc(it){return typeof it.desc==="function"?it.desc():it.desc}
 function itemGraphic(id,extraClass=""){
   const art=asciiGraphic(`item-art ${extraClass}`.trim(),itemDb[id]?.name||shopItems.find(x=>x.id===id)?.label||id,ITEM_ART[id]||"[?]");
   art.setAttribute("data-item",id);return art;
@@ -98,7 +100,7 @@ function updateFarmTimers(){
 
 function renderResources(){
   const r=$("resources");
-  const parts=[["apples","Äpfel",g.apples,`+${g.appleRate.toFixed(1)}/s`]];
+  const parts=[["apples","Äpfel",g.apples,`+${appleRateNow().toFixed(1)}/s`]];
   if(g.shopBought.seedCollector || g.seeds>0) parts.push(["seeds","Apfelkerne",g.seeds,`+${g.seedRate.toFixed(1)}/s`]);
   if(g.cider>0) parts.push(["cider","Mostflaschen",g.cider,""]);
   if(g.bark>0 || g.flags.wrapperSeen) parts.push(["bark","Rindenzeichen",g.bark,""]);
@@ -341,7 +343,7 @@ function renderInventory(){
     const effect=document.createElement("p");effect.className="slot-effect";
     effect.textContent=it?`${it.damage?`+${it.damage} Schaden`:""}${it.damage&&it.defense?" · ":""}${it.defense?`+${it.defense} Schutz`:""}`:"Noch nichts angelegt";
     slot.appendChild(effect);
-    if(it){const desc=document.createElement("p");desc.className="slot-desc";desc.textContent=it.desc;slot.appendChild(desc)}
+    if(it){const desc=document.createElement("p");desc.className="slot-desc";desc.textContent=itemDesc(it);slot.appendChild(desc)}
     if(id==="weapon" && g.equipped.weapon==="rustySword" && g.location==="wall" && !g.flags.wallMarker)
       slot.appendChild(btn("Wegweiser schnitzen",carveMarker));
     layout.appendChild(slot);
@@ -358,7 +360,7 @@ function renderInventory(){
     const summary=document.createElement("summary");summary.textContent=`Weitere Ausrüstung (${spare.length})`;spareBag.appendChild(summary);
     for(const id of spare){const d=document.createElement("div");d.className="pouch-item";
       d.appendChild(itemGraphic(id));const info=document.createElement("div");info.className="pouch-item-text";
-      info.innerHTML=`<strong>${escapeHtml(itemDb[id].name)}</strong><br>${escapeHtml(itemDb[id].desc)}`;d.appendChild(info);spareBag.appendChild(d)}
+      info.innerHTML=`<strong>${escapeHtml(itemDb[id].name)}</strong><br>${escapeHtml(itemDesc(itemDb[id]))}`;d.appendChild(info);spareBag.appendChild(d)}
     c.appendChild(spareBag);
   }
   const other=g.inventory.filter(id=>!gearSlot(id));
@@ -367,7 +369,7 @@ function renderInventory(){
     const summary=document.createElement("summary");summary.textContent=`Fundstücke und Hinweise (${other.length})`;pouch.appendChild(summary);
     for(const id of other){const d=document.createElement("div");d.className="pouch-item";
       d.appendChild(itemGraphic(id));const info=document.createElement("div");info.className="pouch-item-text";
-      info.innerHTML=`<strong>${escapeHtml(itemDb[id].name)}</strong><br>${escapeHtml(itemDb[id].desc)}`;d.appendChild(info);pouch.appendChild(d)}
+      info.innerHTML=`<strong>${escapeHtml(itemDb[id].name)}</strong><br>${escapeHtml(itemDesc(itemDb[id]))}`;d.appendChild(info);pouch.appendChild(d)}
     c.appendChild(pouch);
   }
 }
@@ -625,21 +627,23 @@ function renderMap(){
     {id:"bahnhof",name:"Ehemaliger Bahnhof",col:28,row:17},
     {id:"jenbach",name:g.water.oster.stage==="solved"&&g.flags.jenbachWon&&g.water.flood.stage!=="solved"?"Jenbach · Hochwasser":"Jenbachparadies",col:68,row:26},
     {id:"osterbach",name:"Wasserspielplatz Am Osterbach",col:27,row:26},
-    {id:"biberdamm",name:"Biberburg",col:17,row:32,locked:g.water.oster.stage==="new"},
-    ...(g.water.oster.stage==="solved"&&g.flags.jenbachWon?[{id:"siedlung",name:"Wohnhäuser am Jenbach",col:82,row:21,locked:g.water.flood.stage==="new"}]:[]),
-    {id:"wall",name:"Unteres Jenbachtal",col:66,row:33,locked:!g.flags.jenbachWon},
-    {id:"tregler",name:"Tregler Alm",col:22,row:39,locked:!g.flags.jenbachWon},
-    {id:"wirtsalm",name:"Wirtsalm",col:52,row:40,locked:!g.flags.wallPassed}
+    {id:"biberdamm",name:"Biberburg",col:17,row:32},
+    ...(g.water.oster.stage==="solved"&&g.flags.jenbachWon?[{id:"siedlung",name:"Wohnhäuser am Jenbach",col:82,row:21}]:[]),
+    {id:"wall",name:"Unteres Jenbachtal",col:66,row:33},
+    {id:"tregler",name:"Tregler Alm",col:22,row:39},
+    {id:"wirtsalm",name:"Wirtsalm",col:52,row:40}
   ];
   if(g.flags.ending)places.push(
     {id:"markt",name:"Apfelmarkt",col:46,row:24},
     {id:"wiechs",name:"Wiechs",col:88,row:17},
     {id:"au",name:"Au / Taxakapelle",col:15,row:7},
     {id:"litzldorf",name:"Litzldorfer Wasserfall",col:99,row:28},
-    {id:"farrenpoint",name:"Farrenpoint",col:91,row:40,locked:!g.flags.springHeard},
-    {id:"wendelstein",name:"Wendelstein",col:53,row:46,locked:!has("hikingStick")},
-    {id:"fulinpach",name:"Fulinpach",col:72,row:44,locked:!g.flags.mannlGift||!g.flags.boxOpened}
+    {id:"farrenpoint",name:"Farrenpoint",col:91,row:40},
+    {id:"wendelstein",name:"Wendelstein",col:53,row:46},
+    {id:"fulinpach",name:"Fulinpach",col:72,row:44}
   );
+  // Gesperrt oder offen entscheidet die Spiellogik (placeLocked in game.js), damit Karte, Reise und Questbuch übereinstimmen.
+  for(const place of places)place.locked=Boolean(placeLocked(place.id));
   if(!mapBaseCanvas)mapBaseCanvas=buildMapCanvas();
   // Ortsmarken ersetzen drei Zeichen der Landschaft an ihrer Position; der Name erscheint erst beim Darüberfahren.
   const byRow=new Map();
@@ -748,7 +752,8 @@ function renderJournal(){
 let combatView=null;
 function healthBar(value,max){return `[${"#".repeat(Math.round(Math.max(0,value)/max*20)).padEnd(20,".")}]`}
 function combatStatusText(e){
-  return `DU                           ${e.name}\nLP ${Math.ceil(g.hp)}/${g.maxHp}                     LP ${Math.max(0,Math.ceil(g.combat.enemyHp))}/${e.maxHp}\n${healthBar(g.hp,g.maxHp)}      ${healthBar(g.combat.enemyHp,e.maxHp)}\n\nDeine Waffe greift automatisch an. Du kannst zusätzlich gezielt angreifen.`;
+  const windup=g.combat.windupUntil?`\n\n>>> ${e.name} holt aus: ${e.special.name}! Jetzt gezielt angreifen. <<<`:"";
+  return `DU                           ${e.name}\nLP ${Math.ceil(g.hp)}/${g.maxHp}                     LP ${Math.max(0,Math.ceil(g.combat.enemyHp))}/${e.maxHp}\n${healthBar(g.hp,g.maxHp)}      ${healthBar(g.combat.enemyHp,e.maxHp)}\n\nDeine Waffe greift automatisch an. Du kannst zusätzlich gezielt angreifen.${windup}`;
 }
 function renderCombat(q){
   const e=enemies[g.combat.id];
@@ -761,7 +766,7 @@ function renderCombat(q){
   const blade=g.equipped.weapon==="rustySword";
   const strikeButton=btn("",strike,()=>Date.now()<(g.combat?.nextStrike||0));q.appendChild(strikeButton);
   const hint=document.createElement("p");hint.className="small";
-  hint.textContent=`Automatische Angriffe: ${g.damage} Schaden je Treffer. ${blade?"Der gezielte Schnitt verursacht zusätzlich Schaden und ist alle 3,2 Sekunden möglich.":"Im Inventar kannst du eine andere Waffe ausrüsten."}`;
+  hint.textContent=`Automatische Angriffe: ${g.damage} Schaden je Treffer. ${blade?"Der gezielte Schnitt verursacht zusätzlich Schaden und ist alle 3,2 Sekunden möglich.":"Im Inventar kannst du eine andere Waffe ausrüsten."}${e.special?` Wenn ${e.name} ausholt, unterbricht ein gezielter Angriff den schweren Treffer.`:""}`;
   q.appendChild(hint);
   q.appendChild(btn("Zum Rathausplatz fliehen",()=>{g.combat=null;g.hp=Math.max(1,g.hp);g.location="rathaus";say("Du fliehst. Taktischer Rückzug ist Flucht mit besserem Marketing.");render()}));
   combatView={hero,enemyPortrait,status,strikeButton,blade};
@@ -773,15 +778,16 @@ function updateCombatView(now){
   v.status.textContent=combatStatusText(e);
   v.hero.classList.toggle("hurt",now-(g.combat.lastHurt||0)<450);
   v.enemyPortrait.classList.toggle("hit",now-(g.combat.lastHit||0)<450);
+  v.enemyPortrait.classList.toggle("windup",Boolean(g.combat.windupUntil));
   const ready=now>=(g.combat.nextStrike||0);
-  const label=ready?(v.blade?"Mit Obstmesser gezielt schneiden":"Gezielt angreifen"):"Nächster gezielter Angriff gleich";
+  const label=ready?(g.combat.windupUntil?"Jetzt zuschlagen!":v.blade?"Mit Obstmesser gezielt schneiden":"Gezielt angreifen"):"Nächster gezielter Angriff gleich";
   if(v.strikeButton.textContent!==label)v.strikeButton.textContent=label;
 }
 
 function renderQuests(){
   const sceneKey=currentSceneKey();
-  const hint=$("questHint"),entries=journalEntries(),atPlace=entries.filter(e=>e.place===g.location);
-  const current=atPlace.find(e=>!e.done)||atPlace[0]||(["osterbach","biberdamm"].includes(g.location)?entries.find(e=>e.id==="oster"):g.location==="siedlung"?entries.find(e=>e.id==="hochwasser"):null);
+  const hint=$("questHint"),entries=journalEntries();
+  const current=currentQuestEntry(entries);
   hint.textContent=g.combat?"Nächster Schritt: Besiege den Gegner oder ziehe dich zum Rathausplatz zurück.":current?`${current.done?"Entschieden":"Nächster Schritt"} · ${current.step}${current.decision?` ${current.decision}`:""}`:"";
   hint.style.display=hint.textContent?"block":"none";
   const locationArt=$("locationArt"),sceneChanged=locationArt.textContent!==SCENES[sceneKey];
@@ -854,7 +860,7 @@ function renderQuests(){
     }
     if(g.flags.jenbachWon) q.innerHTML=`<pre>JENBACHPARADIES\n\nDer Bach rauscht.\nDie Ratten sind weg.\nEin Weg führt weiter ins untere Jenbachtal.\n\nDu findest es beunruhigend, wie schnell sich Gewalt als Navigation etabliert hat.</pre>`;
     else {
-      q.innerHTML=`<pre>JENBACHPARADIES\n\nEtwas raschelt am Wasser. Es trägt eine Krone.\n\nDu kannst die Ratten bekämpfen oder sie mit 35 Äpfeln vom Weg locken.</pre>`;
+      q.innerHTML=`<pre>JENBACHPARADIES\n\nEtwas raschelt am Wasser. Es trägt eine Krone.\n\nDu kannst die Ratten bekämpfen (der König holt vor seinem Sprung sichtbar aus; ein gezielter Angriff unterbricht ihn) oder sie mit 35 Äpfeln vom Weg locken.\nIm Nest liegen gehortete Äpfel, unter der Brücke angenagte Kerne. Beides bleibt zurück, je nachdem, wer geht.</pre>`;
       q.appendChild(btn("Bachrattenkönig bekämpfen",()=>{startCombat("bachratte");render()}));
       q.appendChild(btn("Ratten mit 35 Äpfeln weglocken",resolveRatPeacefully,()=>g.apples<35));
     }

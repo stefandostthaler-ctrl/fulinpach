@@ -34,7 +34,10 @@ const itemDb = {
   lantern: {name:"Moorlicht im Glas", type:"trinket", defense:3, desc:"Nur auf dem Bohlenweg eingefangen. Ein Irrlicht gehört sonst niemandem."},
   hikingStick: {name:"Stecken vom Farrenpoint", type:"weapon", damage:16, defense:3, desc:"Für den Weg zum Wendelstein. Für die letzte Wanderung besonders geeignet."},
   mannlgift: {name:"Gabe der Wendelstein-Männlein", type:"trinket", defense:7, damage:6, desc:"Die Männlein stellen lieber Fragen, bevor sie helfen. Der Ring wärmt sich, wenn du etwas teilst."},
-  fahrkarte: {name:"Alte Fahrkarte", type:"misc", desc:"Die Schrift auf der Fahrkarte ist blass. 1897 begann die Fahrt nach Bad Aibling; 1973 endete sie. Zwischen den Zahlen steht ein Apfelbaum."}
+  fahrkarte: {name:"Alte Fahrkarte", type:"misc", desc:"Die Schrift auf der Fahrkarte ist blass. 1897 begann die Fahrt nach Bad Aibling; 1973 endete sie. Zwischen den Zahlen steht ein Apfelbaum."},
+  // desc darf eine Funktion sein, wenn der Text vom Spielstand abhängt.
+  goldenApple: {name:"Goldener Apfel der Stadt", type:"trinket", defense:5, damage:5, desc:()=>`Verliehen für den Abschluss der Geschichte${g.flags.finalChoice==="share"?", weil die Ernte geteilt wurde":g.flags.finalChoice==="rest"?", weil der Bach bleiben durfte":""}. Bad Feilnbach ist offiziell keine Stadt, der Apfel offiziell nicht aus Gold. Beides stört niemanden. Seit der Verleihung fällt jede Sekunde ein Apfel mehr in die Kiste.`},
+  appleADay: {name:"An apple a day…", type:"trinket", defense:1, damage:1, desc:"980 Lebenspunkte, wie das Jahr der ersten Erwähnung. Seitdem hält kein Arzt und kein Gegner mehr Schritt mit dir. Du bist unbesiegbar."}
 };
 
 // Bäume auf der Streuobstwiese: Kosten in Kernen, Reifezeit in Sekunden, Ertrag.
@@ -53,15 +56,18 @@ const shopItems = [
   {id:"pickerGloves", label:"Pflückerhandschuhe", cost:{seeds:20}, action:()=>addItem("pickerGloves")},
   {id:"hikingBoots", label:"Jenbachtaler Wanderstiefel", cost:{seeds:40}, action:()=>addItem("hikingBoots")},
   {id:"map", label:"Verdächtig genaue Wanderkarte", cost:{apples:220,seeds:10}, action:()=>{g.flags.mapBought=true;g.unlocks.map=true;say("Du faltest die Karte auf. Die Orte stimmen. Die eingezeichneten Monster eher nicht.","good")}},
-  {id:"insurance", label:"Sehr lokale Abenteuer-Versicherung", cost:{apples:300}, repeat:true, action:()=>{g.insuranceBonus+=25;g.maxHp+=25;g.hp=g.maxHp;say("Versichert sind Monster und existenzielle Schäden. Äpfel: natürlich nicht.","good")}},
+  {id:"insurance", label:"Sehr lokale Abenteuer-Versicherung", cost:{apples:300}, repeat:true, action:()=>{g.insuranceBonus+=25;g.maxHp+=25;g.hp=g.maxHp;say("Versichert sind Monster und existenzielle Schäden. Äpfel: natürlich nicht.","good");checkAppleADay()}},
   {id:"doNotBuy", label:"NICHT KAUFEN", cost:{apples:666}, action:()=>{g.flags.doNotBuy=true;g.bark+=3;g.stats.secrets++;say("Du kaufst den Gegenstand mit der Aufschrift NICHT KAUFEN. Der Händler notiert deinen Namen.","secret");say("Drei Rindenzeichen erscheinen in deiner Tasche. Du untersuchst die Tasche nicht weiter.")}}
 ];
 
 // Gegner: hp = Lebenspunkte, damage = Schaden pro Angriff, interval = Angriffstakt in ms.
+// special (optional): schwerer Angriff. every = jeder wievielte Angriff, windup = Ausholen in ms,
+// factor = Vielfaches des normalen Schadens. Ein gezielter Angriff während des Ausholens unterbricht ihn.
 const enemies={
   bachratte:{
     name:"Der Bachrattenkönig", hp:90,maxHp:90,damage:7,interval:1300,
-    reward:()=>{g.bark+=2;addItem("ratCrown");g.flags.jenbachWon=true;g.flags.ratRoute="kampf";say("Der Bachrattenkönig fällt. Am Jenbach beginnt eine sehr kleine Verfassungskrise.","good")}
+    special:{name:"Sprung von der Brücke",every:3,windup:1500,factor:2},
+    reward:()=>{g.bark+=2;g.apples+=15;addItem("ratCrown");g.flags.jenbachWon=true;g.flags.ratRoute="kampf";say("Der Bachrattenkönig fällt. Am Jenbach beginnt eine sehr kleine Verfassungskrise.","good");say("Im Rattennest liegen 15 gehortete Äpfel. Der Hofstaat hatte offenbar Vorräte, aber keinen Plan.","good")}
   },
   golem:{
     name:"Der Schmalznudel-Golem", hp:150,maxHp:150,damage:9,interval:1300,
